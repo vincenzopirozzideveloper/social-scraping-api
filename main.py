@@ -4,6 +4,8 @@ import sys
 import json
 import time
 
+from ig_scraper.api import Endpoints
+
 def signal_handler(sig, frame):
     print('\nClean exit.')
     sys.exit(0)
@@ -37,7 +39,7 @@ def perform_login(page):
         print('Submitting login form and waiting for response...')
         
         # Professional approach: expect_response with the click
-        with page.expect_response("**/api/v1/web/accounts/login/ajax/") as response_info:
+        with page.expect_response(Endpoints.LOGIN_AJAX) as response_info:
             page.click('#loginForm button[type="submit"]')
         
         # Get the response
@@ -126,7 +128,7 @@ def main():
                 page = browser.new_page()
                 
                 print('Navigating to Instagram login...')
-                page.goto('https://www.instagram.com/accounts/login/')
+                page.goto(Endpoints.LOGIN_PAGE)
                 
                 handle_cookie_banner(page)
                 page.wait_for_timeout(1000)
