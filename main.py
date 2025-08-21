@@ -6,6 +6,7 @@ import time
 
 from ig_scraper.api import Endpoints, GraphQLClient, GraphQLInterceptor
 from ig_scraper.auth import SessionManager
+from ig_scraper.scrapers.following import FollowingScraper
 
 def signal_handler(sig, frame):
     print('\nClean exit.')
@@ -222,11 +223,81 @@ def first_automation(session_manager):
     except Exception as e:
         print(f'Error in first_automation: {e}')
 
+def scrape_following(session_manager):
+    """Scrape following list"""
+    try:
+        # Load credentials to get username
+        with open('credentials.json', 'r') as f:
+            creds = json.load(f)
+        username = creds['email'].split('@')[0]
+        
+        # Check if we have a saved session
+        if not session_manager.has_saved_session(username):
+            print("No saved session found. Please login first (option 1)")
+            return
+        
+        from playwright.sync_api import sync_playwright
+        
+        with sync_playwright() as p:
+            print('Starting browser with saved session...')
+            browser = p.chromium.launch(headless=False)
+            
+            # Create context with saved session
+            context = session_manager.create_browser_context(browser, username)
+            page = context.new_page()
+            
+            print('Loading Instagram...')
+            page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+            page.wait_for_timeout(3000)
+            
+            # Create following scraper
+            scraper = FollowingScraper(page, session_manager, username)
+            
+            # Verify login with GraphQL test
+            if not scraper.verify_login_with_graphql():
+                print("\n✗ Login verification failed. Please login again (option 1)")
+                context.close()
+                browser.close()
+                return
+            
+            print("\n✓ Login verified! Proceeding with following scrape...")
+            page.wait_for_timeout(2000)
+            
+            # Get following list
+            following_data = scraper.get_following(count=12)
+            
+            if following_data:
+                # Display the results
+                scraper.display_following(following_data)
+                
+                # Check if there are more pages
+                if following_data.get('next_max_id'):
+                    print("\n" + "="*50)
+                    choice = input("Load more following? (y/n): ")
+                    if choice.lower() == 'y':
+                        # Get next page
+                        print("\nFetching next page...")
+                        next_data = scraper.get_following(count=12, max_id=following_data['next_max_id'])
+                        if next_data:
+                            scraper.display_following(next_data)
+            else:
+                print("✗ Failed to get following list")
+            
+            print('\nWaiting 10 seconds before closing...')
+            page.wait_for_timeout(10000)
+            
+            context.close()
+            browser.close()
+            print('Browser closed')
+            
+    except Exception as e:
+        print(f'Error in scrape_following: {e}')
+
 def main():
     session_manager = SessionManager()
     
     while True:
-        choice = input('\n1: Login\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n0: Exit\n> ')
+        choice = input('\n1: Login\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n0: Exit\n> ')
         if choice == '0':
             break
             
@@ -334,6 +405,9 @@ def main():
                 
         elif choice == '4':
             first_automation(session_manager)
+            
+        elif choice == '5':
+            scrape_following(session_manager)
 
 if __name__ == '__main__':
     main()
