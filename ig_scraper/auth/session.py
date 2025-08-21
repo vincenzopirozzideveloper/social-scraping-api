@@ -21,11 +21,16 @@ class SessionManager:
         """Get storage state file path for a user"""
         return str(self.states_dir / f"{username}_state.json")
     
-    def save_session_info(self, username: str, data: Dict[str, Any]):
-        """Save additional session information"""
+    def save_session_info(self, username: str, data: Dict[str, Any], graphql_data: Optional[Dict[str, Any]] = None):
+        """Save additional session information including GraphQL metadata"""
         info_path = self.base_dir / f"{username}_info.json"
         data['last_saved'] = datetime.now().isoformat()
         data['username'] = username
+        
+        # Add GraphQL data if provided
+        if graphql_data:
+            data['graphql'] = graphql_data
+            print(f"  → Saved {len(graphql_data.get('doc_ids', {}))} GraphQL endpoints")
         
         with open(info_path, 'w') as f:
             json.dump(data, f, indent=2)
@@ -68,16 +73,16 @@ class SessionManager:
         
         return context
     
-    def save_context_state(self, context, username: str):
-        """Save the current context state"""
+    def save_context_state(self, context, username: str, graphql_data: Optional[Dict[str, Any]] = None):
+        """Save the current context state with optional GraphQL data"""
         state_path = self.get_state_path(username)
         context.storage_state(path=state_path)
         print(f"✓ Session state saved for {username}")
         
-        # Also save session info
+        # Also save session info with GraphQL data
         self.save_session_info(username, {
             'state_file': state_path
-        })
+        }, graphql_data)
     
     def clear_session(self, username: str):
         """Clear saved session for a user"""

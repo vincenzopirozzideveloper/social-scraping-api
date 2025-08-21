@@ -3,21 +3,33 @@
 import json
 from typing import Dict, Any, Optional
 from urllib.parse import urlencode
+from .endpoints import Endpoints
 
 
 class GraphQLClient:
     """Handle Instagram GraphQL requests"""
     
-    def __init__(self, page):
+    def __init__(self, page, saved_metadata: Optional[Dict[str, Any]] = None):
         self.page = page
-        self.base_url = "https://www.instagram.com/graphql/query"
+        self.base_url = Endpoints.GRAPHQL_QUERY
+        self.saved_metadata = saved_metadata or {}
         
     def get_browser_headers(self) -> Dict[str, str]:
-        """Extract headers from current browser context"""
-        # Get user agent from browser
-        user_agent = self.page.evaluate("navigator.userAgent")
+        """Extract headers from current browser context or use saved ones"""
         
-        # Get csrftoken from cookies
+        # Try to use saved metadata first
+        if self.saved_metadata:
+            user_agent = self.saved_metadata.get('user_agent')
+            app_id = self.saved_metadata.get('app_id')
+        else:
+            user_agent = None
+            app_id = None
+        
+        # Fallback to getting from browser
+        if not user_agent:
+            user_agent = self.page.evaluate("navigator.userAgent")
+        
+        # Get current csrftoken from cookies (this changes)
         cookies = self.page.context.cookies()
         csrf_token = None
         for cookie in cookies:
@@ -44,7 +56,7 @@ class GraphQLClient:
             "sec-fetch-site": "same-origin",
             "user-agent": user_agent,
             "x-csrftoken": csrf_token or "",
-            "x-ig-app-id": "936619743392459",
+            "x-ig-app-id": app_id or "936619743392459",
         }
     
     def get_profile_info(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -55,7 +67,21 @@ class GraphQLClient:
         self.page.wait_for_timeout(1000)
         
         # Prepare GraphQL request parameters
-        doc_id = "23990158980626285"  # PolarisProfilePageContentQuery
+        # Try to use saved doc_id first
+        doc_id = None
+        if self.saved_metadata and 'doc_ids' in self.saved_metadata:
+            # Look for profile-related doc_ids
+            doc_ids = self.saved_metadata['doc_ids']
+            for name, id in doc_ids.items():
+                if 'Profile' in name or 'User' in name:
+                    doc_id = id
+                    print(f"Using saved doc_id for {name}: {doc_id}")
+                    break
+        
+        # Fallback to known doc_id
+        if not doc_id:
+            doc_id = "23990158980626285"  # PolarisProfilePageContentQuery
+            print(f"Using fallback doc_id: {doc_id}")
         
         variables = {
             "enable_integrity_filters": True,

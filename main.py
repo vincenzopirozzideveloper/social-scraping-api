@@ -4,7 +4,7 @@ import sys
 import json
 import time
 
-from ig_scraper.api import Endpoints, GraphQLClient
+from ig_scraper.api import Endpoints, GraphQLClient, GraphQLInterceptor
 from ig_scraper.auth import SessionManager
 
 def signal_handler(sig, frame):
@@ -169,12 +169,19 @@ def first_automation(session_manager):
             
             print(f'User ID from cookies: {user_id}')
             
+            # Load saved GraphQL metadata if available
+            saved_info = session_manager.load_session_info(username)
+            graphql_metadata = None
+            if saved_info and 'graphql' in saved_info:
+                graphql_metadata = saved_info['graphql']
+                print(f"Loaded saved GraphQL metadata with {len(graphql_metadata.get('doc_ids', {}))} endpoints")
+            
             # Create GraphQL client and make request
             print('\n' + '='*50)
             print('EXECUTING GRAPHQL REQUEST')
             print('='*50)
             
-            graphql_client = GraphQLClient(page)
+            graphql_client = GraphQLClient(page, graphql_metadata)
             response_data = graphql_client.get_profile_info(user_id)
             
             if response_data:
@@ -254,6 +261,10 @@ def main():
                             choice = '1'  # Force fresh login
                     
                     if choice == '1':
+                        # Set up GraphQL interceptor
+                        interceptor = GraphQLInterceptor()
+                        interceptor.setup_interception(page)
+                        
                         print('Navigating to Instagram login...')
                         page.goto(Endpoints.LOGIN_PAGE)
                         
@@ -267,26 +278,37 @@ def main():
                             # Try to click the post-login button
                             click_post_login_button(page)
                             
-                            # Save the session state
+                            # Wait a bit for more GraphQL requests to be captured
+                            print('\nCapturing GraphQL metadata...')
+                            page.wait_for_timeout(3000)
+                            
+                            # Get captured GraphQL data
+                            graphql_data = interceptor.get_session_data()
+                            
+                            # Save the session state with GraphQL data
                             print('\nSaving session for future use...')
-                            session_manager.save_context_state(context, username)
+                            session_manager.save_context_state(context, username, graphql_data)
                             
                             # Wait a bit
                             print('\nLogin successful! Session saved.')
-                            print('Waiting 30 seconds before closing...')
-                            page.wait_for_timeout(30000)
+                            print('Waiting 10 seconds before closing...')
+                            page.wait_for_timeout(10000)
                             
                         elif login_status == '2fa':
                             print('\nPlease complete 2FA in the browser')
                             input('Press Enter when done...')
+                            # Get captured GraphQL data after 2FA
+                            graphql_data = interceptor.get_session_data()
                             # Save session after 2FA
-                            session_manager.save_context_state(context, username)
+                            session_manager.save_context_state(context, username, graphql_data)
                             
                         elif login_status == 'checkpoint':
                             print('\nPlease complete the checkpoint challenge in the browser')
                             input('Press Enter when done...')
+                            # Get captured GraphQL data after checkpoint
+                            graphql_data = interceptor.get_session_data()
                             # Save session after checkpoint
-                            session_manager.save_context_state(context, username)
+                            session_manager.save_context_state(context, username, graphql_data)
                             
                         else:
                             print('\nLogin was not successful')
