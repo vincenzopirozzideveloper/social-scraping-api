@@ -1,0 +1,32 @@
+fetch("https://www.instagram.com/api/v1/web/accounts/login/ajax/two_factor/", {
+  "headers": {
+    "accept": "*/*",
+    "accept-language": "en-GB,en;q=0.9",
+    "content-type": "application/x-www-form-urlencoded",
+    "priority": "u=1, i",
+    "sec-ch-prefers-color-scheme": "light",
+    "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\"",
+    "sec-ch-ua-full-version-list": "\"Not;A=Brand\";v=\"99.0.0.0\", \"Google Chrome\";v=\"139.0.7258.128\", \"Chromium\";v=\"139.0.7258.128\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-model": "\"\"",
+    "sec-ch-ua-platform": "\"Windows\"",
+    "sec-ch-ua-platform-version": "\"19.0.0\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-asbd-id": "359341",
+    "x-csrftoken": "0rklMfd6tfKse67Ypcoj8n",
+    "x-ig-app-id": "936619743392459",
+    "x-ig-www-claim": "0",
+    "x-instagram-ajax": "1026160724",
+    "x-mid": "82hz602q2kxx1t597v1mkaffc1eajn4m1hkg7di6nrkoguau58",
+    "x-requested-with": "XMLHttpRequest",
+    "x-web-device-id": "4C91B8DE-B8F2-43BE-A996-DBD33C4652FD",
+    "x-web-session-id": "37qt5r:o5p7gx:gzo2x6"
+  },
+  "referrer": "https://www.instagram.com/accounts/login/two_factor?next=%2F",
+  "body": "identifier=ARGTS1MIv95fO8b-bdKxnyypubLPVt9I1332GG-UXRr1CTswAkshCvl1YWt90MAbdBbZJdEYEbnZNP8Dh6rHIDivnljPLdfyEqyFR9lZ9uk901NkP_KsY3I9H7DFNkvv2MzZJEqYKMc3OcSb&isPrivacyPortalReq=false&queryParams=%7B%22next%22%3A%22%2F%22%7D&trust_signal=true&username=vincenzopirozzi.developer&verification_method=6&verificationCode=629947&jazoest=22011",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
