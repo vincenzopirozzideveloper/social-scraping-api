@@ -4,7 +4,7 @@ import sys
 import json
 import time
 
-from ig_scraper.api import Endpoints
+from ig_scraper.api import Endpoints, GraphQLClient
 from ig_scraper.auth import SessionManager
 
 def signal_handler(sig, frame):
@@ -117,11 +117,109 @@ def click_post_login_button(page):
         print(f'Error clicking button: {e}')
         return False
 
+def first_automation(session_manager):
+    """First automation: Login with saved session and make GraphQL request"""
+    try:
+        # Load credentials to get username
+        with open('credentials.json', 'r') as f:
+            creds = json.load(f)
+        username = creds['email'].split('@')[0]
+        
+        # Check if we have a saved session
+        if not session_manager.has_saved_session(username):
+            print("No saved session found. Please login first (option 1)")
+            return
+        
+        from playwright.sync_api import sync_playwright
+        
+        with sync_playwright() as p:
+            print('Starting browser with saved session...')
+            browser = p.chromium.launch(headless=False)
+            
+            # Create context with saved session
+            context = session_manager.create_browser_context(browser, username)
+            page = context.new_page()
+            
+            print('Loading Instagram...')
+            page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+            page.wait_for_timeout(3000)
+            
+            # Check if logged in
+            if not (page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]')):
+                print("Session expired. Please login again (option 1)")
+                context.close()
+                browser.close()
+                return
+            
+            print('✓ Logged in successfully with saved session!')
+            
+            # Get user ID from saved session
+            cookies = context.cookies()
+            user_id = None
+            for cookie in cookies:
+                if cookie['name'] == 'ds_user_id':
+                    user_id = cookie['value']
+                    break
+            
+            if not user_id:
+                print("Could not find user ID in cookies")
+                context.close()
+                browser.close()
+                return
+            
+            print(f'User ID from cookies: {user_id}')
+            
+            # Create GraphQL client and make request
+            print('\n' + '='*50)
+            print('EXECUTING GRAPHQL REQUEST')
+            print('='*50)
+            
+            graphql_client = GraphQLClient(page)
+            response_data = graphql_client.get_profile_info(user_id)
+            
+            if response_data:
+                username_from_api = graphql_client.extract_username(response_data)
+                
+                print('\n' + '='*50)
+                print('RESULT')
+                print('='*50)
+                
+                if username_from_api:
+                    print(f'✓ USERNAME RETRIEVED: {username_from_api}')
+                    
+                    # Show more profile info if available
+                    try:
+                        user_data = response_data['data']['user']
+                        print(f'  Full Name: {user_data.get("full_name", "N/A")}')
+                        print(f'  Bio: {user_data.get("biography", "N/A")[:100]}...')
+                        print(f'  Followers: {user_data.get("follower_count", "N/A")}')
+                        print(f'  Following: {user_data.get("following_count", "N/A")}')
+                        print(f'  Posts: {user_data.get("media_count", "N/A")}')
+                        print(f'  Verified: {user_data.get("is_verified", False)}')
+                    except:
+                        pass
+                else:
+                    print('✗ Could not extract username from response')
+                
+                print('='*50)
+            else:
+                print('✗ GraphQL request failed')
+            
+            print('\nWaiting 10 seconds before closing...')
+            page.wait_for_timeout(10000)
+            
+            context.close()
+            browser.close()
+            print('Browser closed')
+            
+    except Exception as e:
+        print(f'Error in first_automation: {e}')
+
 def main():
     session_manager = SessionManager()
     
     while True:
-        choice = input('\n1: Login\n2: Login with saved session\n3: Clear saved sessions\n0: Exit\n> ')
+        choice = input('\n1: Login\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n0: Exit\n> ')
         if choice == '0':
             break
             
@@ -211,6 +309,9 @@ def main():
                 session_manager.clear_session(username)
             except Exception as e:
                 print(f'Error clearing session: {e}')
+                
+        elif choice == '4':
+            first_automation(session_manager)
 
 if __name__ == '__main__':
     main()

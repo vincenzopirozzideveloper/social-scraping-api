@@ -21,9 +21,8 @@ credentials.json
 *.log
 .env
 
-# Browser sessions and profiles
+# Browser sessions
 browser_sessions/
-browser_data/
 sessions/
 *.session
 *_state.json
