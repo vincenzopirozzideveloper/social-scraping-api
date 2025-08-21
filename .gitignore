@@ -20,3 +20,10 @@ ENV/
 credentials.json
 *.log
 .env
+
+# Browser sessions and profiles
+browser_sessions/
+browser_data/
+sessions/
+*.session
+*_state.json

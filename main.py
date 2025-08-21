@@ -5,6 +5,7 @@ import json
 import time
 
 from ig_scraper.api import Endpoints
+from ig_scraper.auth import SessionManager
 
 def signal_handler(sig, frame):
     print('\nClean exit.')
@@ -49,14 +50,14 @@ def perform_login(page):
         # Parse response
         try:
             data = login_response.json()
-        except:
-            # Fallback to text parsing
-            data = json.loads(login_response.text())
-        
-        print('\n' + '='*50)
-        print('LOGIN RESPONSE:')
-        print(json.dumps(data, indent=2))
-        print('='*50 + '\n')
+            print('\n' + '='*50)
+            print('LOGIN RESPONSE:')
+            print(json.dumps(data, indent=2))
+            print('='*50 + '\n')
+        except Exception as e:
+            print(f'Warning: Could not parse response body: {e}')
+            # Create minimal data from status
+            data = {'status': 'ok' if login_response.status == 200 else 'fail', 'authenticated': login_response.status == 200}
         
         # Check login status
         if data.get('authenticated') and data.get('status') == 'ok':
@@ -117,49 +118,99 @@ def click_post_login_button(page):
         return False
 
 def main():
+    session_manager = SessionManager()
+    
     while True:
-        choice = input('\n1: Login\n0: Exit\n> ')
+        choice = input('\n1: Login\n2: Login with saved session\n3: Clear saved sessions\n0: Exit\n> ')
         if choice == '0':
             break
-        elif choice == '1':
-            with sync_playwright() as p:
-                print('Starting browser...')
-                browser = p.chromium.launch(headless=False)
-                page = browser.new_page()
+            
+        elif choice in ['1', '2']:
+            try:
+                # Load credentials
+                with open('credentials.json', 'r') as f:
+                    creds = json.load(f)
+                username = creds['email'].split('@')[0]  # Use email prefix as username
                 
-                print('Navigating to Instagram login...')
-                page.goto(Endpoints.LOGIN_PAGE)
-                
-                handle_cookie_banner(page)
-                page.wait_for_timeout(1000)
-                
-                # Perform login and get result
-                login_status, response_data = perform_login(page)
-                
-                if login_status == 'success':
-                    # Try to click the post-login button
-                    click_post_login_button(page)
+                with sync_playwright() as p:
+                    print('Starting browser...')
+                    browser = p.chromium.launch(headless=False)
                     
-                    # Wait 60 seconds
-                    print('\nWaiting 60 seconds before closing...')
-                    for i in range(60, 0, -5):
-                        print(f'  {i} seconds remaining...')
-                        page.wait_for_timeout(5000)
+                    # Create context with storage state
+                    context = session_manager.create_browser_context(browser, username)
+                    page = context.new_page()
                     
-                elif login_status == '2fa':
-                    print('\nPlease complete 2FA in the browser')
-                    input('Press Enter when done...')
+                    # Check if we need to login
+                    if choice == '2' and session_manager.has_saved_session(username):
+                        print('Using saved session, checking if still logged in...')
+                        page.goto(Endpoints.BASE_URL)
+                        page.wait_for_timeout(3000)
+                        
+                        # Check if we're logged in by looking for profile icon or login button
+                        if page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]'):
+                            print('✓ Still logged in with saved session!')
+                            print('\nSession active! Waiting 30 seconds...')
+                            page.wait_for_timeout(30000)
+                        else:
+                            print('Session expired, need to login again')
+                            choice = '1'  # Force fresh login
                     
-                elif login_status == 'checkpoint':
-                    print('\nPlease complete the checkpoint challenge in the browser')
-                    input('Press Enter when done...')
+                    if choice == '1':
+                        print('Navigating to Instagram login...')
+                        page.goto(Endpoints.LOGIN_PAGE)
+                        
+                        handle_cookie_banner(page)
+                        page.wait_for_timeout(1000)
+                        
+                        # Perform login and get result
+                        login_status, response_data = perform_login(page)
+                        
+                        if login_status == 'success':
+                            # Try to click the post-login button
+                            click_post_login_button(page)
+                            
+                            # Save the session state
+                            print('\nSaving session for future use...')
+                            session_manager.save_context_state(context, username)
+                            
+                            # Wait a bit
+                            print('\nLogin successful! Session saved.')
+                            print('Waiting 30 seconds before closing...')
+                            page.wait_for_timeout(30000)
+                            
+                        elif login_status == '2fa':
+                            print('\nPlease complete 2FA in the browser')
+                            input('Press Enter when done...')
+                            # Save session after 2FA
+                            session_manager.save_context_state(context, username)
+                            
+                        elif login_status == 'checkpoint':
+                            print('\nPlease complete the checkpoint challenge in the browser')
+                            input('Press Enter when done...')
+                            # Save session after checkpoint
+                            session_manager.save_context_state(context, username)
+                            
+                        else:
+                            print('\nLogin was not successful')
+                            input('Press Enter to close browser...')
                     
-                else:
-                    print('\nLogin was not successful')
-                    input('Press Enter to close browser...')
+                    context.close()
+                    browser.close()
+                    print('Browser closed')
+                    
+            except FileNotFoundError:
+                print('Error: credentials.json not found')
+            except Exception as e:
+                print(f'Error: {e}')
                 
-                browser.close()
-                print('Browser closed')
+        elif choice == '3':
+            try:
+                with open('credentials.json', 'r') as f:
+                    creds = json.load(f)
+                username = creds['email'].split('@')[0]
+                session_manager.clear_session(username)
+            except Exception as e:
+                print(f'Error clearing session: {e}')
 
 if __name__ == '__main__':
     main()
