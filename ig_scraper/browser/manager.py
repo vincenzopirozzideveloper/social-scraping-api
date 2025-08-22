@@ -179,7 +179,11 @@ class BrowserManager:
         """Close all browsers and release all locks"""
         usernames = list(cls._instances.keys())
         for username in usernames:
-            cls.close_browser(username)
+            try:
+                cls.close_browser(username)
+            except:
+                # Force close if normal close fails
+                pass
         
         # Clean up any remaining locks in memory
         for username in list(cls._lock_files.keys()):
@@ -187,7 +191,9 @@ class BrowserManager:
         
         # Clean up ALL .lock files from disk (handles forced exits)
         import os
-        sessions_dir = Path("browser_sessions")
+        from ..config.env_config import BROWSER_SESSIONS_DIR
+        
+        sessions_dir = BROWSER_SESSIONS_DIR
         if sessions_dir.exists():
             for profile_dir in sessions_dir.iterdir():
                 if profile_dir.is_dir():
@@ -198,6 +204,16 @@ class BrowserManager:
                             print(f"[DEBUG] Cleaned up stale lock for @{profile_dir.name}")
                         except Exception as e:
                             print(f"[DEBUG] Could not remove lock for @{profile_dir.name}: {e}")
+        
+        # Force terminate any hanging browser processes in Docker
+        try:
+            from ..config.env_config import IS_DOCKER
+            if IS_DOCKER:
+                import subprocess
+                subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+                print("[DEBUG] Force killed browser processes in Docker")
+        except:
+            pass
     
     @classmethod
     def get_active_profiles(cls) -> list:

@@ -16,15 +16,44 @@ from ig_scraper.config import ConfigManager
 from ig_scraper.config.env_config import CREDENTIALS_PATH
 
 def signal_handler(sig, frame):
-    print('\nClean exit.')
-    # Clean up browser locks on forced exit
+    print('\n\n🛑 INTERRUPT DETECTED - Force cleaning...')
+    
+    import subprocess
+    import os
+    from pathlib import Path
+    
+    # 1. Kill ALL chrome/chromium processes immediately
+    print('  → Killing browser processes...')
+    subprocess.run(['pkill', '-9', '-f', 'chrome'], capture_output=True)
+    subprocess.run(['pkill', '-9', '-f', 'chromium'], capture_output=True)
+    
+    # 2. Clean up ALL .lock files properly
+    print('  → Cleaning lock files...')
+    try:
+        lock_files = Path('/var/www/app/browser_sessions').glob('*/.lock')
+        for lock_file in lock_files:
+            try:
+                lock_file.unlink()
+                print(f'    ✓ Removed lock: {lock_file.parent.name}')
+            except:
+                pass
+    except:
+        # Fallback to shell command
+        subprocess.run(['find', '/var/www/app/browser_sessions', '-name', '.lock', '-delete'], capture_output=True)
+    
+    # 3. Clear BrowserManager instances
     try:
         from ig_scraper.browser import BrowserManager
-        BrowserManager.close_all()
-        print('Browser locks cleaned.')
+        BrowserManager._instances.clear()
+        BrowserManager._locks.clear()
+        BrowserManager._lock_files.clear()
+        print('  → Browser manager cleaned')
     except:
         pass
-    sys.exit(0)
+    
+    # 4. Restart the program completely
+    print('\n✓ Cleanup complete. Restarting...\n')
+    os.execv(sys.executable, ['python3'] + sys.argv)
 
 signal.signal(signal.SIGINT, signal_handler)
 
@@ -614,8 +643,59 @@ def test_saved_session(username, session_manager, playwright):
         # Check if we're logged in
         if page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]'):
             print(f'[{username}] ✓ Still logged in with saved session!')
-            print(f'[{username}] Session active! Keeping tab open for 30 seconds...')
-            page.wait_for_timeout(30000)
+            
+            # Take screenshot in Docker/headless mode
+            from ig_scraper.config.env_config import IS_DOCKER, HEADLESS_MODE
+            if IS_DOCKER or HEADLESS_MODE:
+                # Create screenshots directory
+                from pathlib import Path
+                from datetime import datetime
+                
+                screenshots_dir = Path('/var/www/app/screenshots') if IS_DOCKER else Path('screenshots')
+                screenshots_dir.mkdir(exist_ok=True)
+                
+                # Ask if user wants to navigate somewhere specific
+                print(f'\n[{username}] Screenshot Options:')
+                print('1. Current page (Home)')
+                print('2. My profile')
+                print('3. Specific user profile')
+                print('4. Skip screenshot')
+                
+                screenshot_choice = input('Select option (1-4): ')
+                
+                if screenshot_choice != '4':
+                    # Navigate based on choice
+                    if screenshot_choice == '2':
+                        print(f'[{username}] Navigating to your profile...')
+                        page.goto(f'https://www.instagram.com/{username}/')
+                        page.wait_for_timeout(2000)
+                    elif screenshot_choice == '3':
+                        target_user = input('Enter username to visit: @')
+                        print(f'[{username}] Navigating to @{target_user}...')
+                        page.goto(f'https://www.instagram.com/{target_user}/')
+                        page.wait_for_timeout(2000)
+                    
+                    # Generate filename with timestamp
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    screenshot_path = screenshots_dir / f'{username}_{timestamp}.png'
+                    
+                    # Take screenshot
+                    print(f'[{username}] Taking screenshot...')
+                    page.screenshot(path=str(screenshot_path), full_page=True)
+                    print(f'[{username}] ✓ Screenshot saved: {screenshot_path}')
+                    
+                    # Also save a viewport screenshot (what's visible)
+                    viewport_path = screenshots_dir / f'{username}_{timestamp}_viewport.png'
+                    page.screenshot(path=str(viewport_path), full_page=False)
+                    print(f'[{username}] ✓ Viewport screenshot saved: {viewport_path}')
+            
+            print(f'[{username}] Session active! Press Ctrl+C to return to menu...')
+            
+            # Just wait 5 seconds then return
+            import time
+            for i in range(5, 0, -1):
+                print(f'  Closing in {i} seconds...', end='\r')
+                time.sleep(1)
             
             # Close tab
             BrowserManager.close_page(username, page)
@@ -1024,227 +1104,263 @@ def main():
     atexit.register(cleanup)
     
     while True:
-        # Show active browsers if any
-        active = BrowserManager.get_active_profiles()
-        if active:
-            print("\n📱 Active browsers:")
-            for profile in active:
-                print(f"  → @{profile['username']}: {profile['tabs']} tabs")
-        
-        
-        choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Massive Unfollow (ALL)\n8: Browser Status\n9: Close All Browsers\n0: Exit\n> ')
-        if choice == '0':
-            break
+        try:
+            # Show active browsers if any
+            active = BrowserManager.get_active_profiles()
+            if active:
+                print("\n📱 Active browsers:")
+                for profile in active:
+                    print(f"  → @{profile['username']}: {profile['tabs']} tabs")
             
-        elif choice in ['1', '2']:
-            try:
-                # For login with saved session, select profile first
-                if choice == '2':
-                    username = select_profile(session_manager)
-                    if not username:
-                        continue
-                else:
-                    username = None  # Will be determined after login
-                
-                # Option 2: Use BrowserManager for saved sessions
-                if choice == '2':
-                    # Run in foreground
-                    test_saved_session(username, session_manager, playwright)
+            
+            choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Massive Unfollow (ALL)\n8: Browser Status\n9: Close All Browsers\nS: View Screenshots\n0: Exit\n> ')
+            if choice == '0':
+                break
+            
+            elif choice in ['1', '2']:
+                try:
+                    # For login with saved session, select profile first
+                    if choice == '2':
+                        username = select_profile(session_manager)
+                        if not username:
+                            continue
+                    else:
+                        username = None  # Will be determined after login
                     
-                    # End of option 2 - continue to next iteration
+                    # Option 2: Use BrowserManager for saved sessions
+                    if choice == '2':
+                        # Run in foreground
+                        test_saved_session(username, session_manager, playwright)
+                        
+                        # End of option 2 - continue to next iteration
+                        continue
+                    
+                    # Option 1: New login needs temporary browser
+                    if choice == '1':
+                        print('Starting new browser for login...')
+                        
+                        # Import from config for consistent settings
+                        from ig_scraper.config.env_config import IS_DOCKER, HEADLESS_MODE
+                        
+                        launch_args = {
+                            'headless': HEADLESS_MODE,
+                        }
+                        
+                        if IS_DOCKER:
+                            # Additional args for Docker environment
+                            launch_args['args'] = [
+                                '--no-sandbox',
+                                '--disable-setuid-sandbox',
+                                '--disable-dev-shm-usage',
+                                '--disable-gpu'
+                            ]
+                        
+                        browser = playwright.chromium.launch(**launch_args)
+                        context = browser.new_context(
+                            viewport={'width': 1920, 'height': 1080},
+                            locale='en-US',
+                            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        )
+                        page = context.new_page()
+                        
+                        # Set up GraphQL interceptor
+                        interceptor = GraphQLInterceptor()
+                        interceptor.setup_interception(page)
+                        
+                        print('Navigating to Instagram login...')
+                        page.goto(Endpoints.LOGIN_PAGE)
+                        
+                        handle_cookie_banner(page)
+                        page.wait_for_timeout(1000)
+                        
+                        # Perform login and get result
+                        login_status, response_data = perform_login(page)
+                        
+                        if login_status == 'success':
+                            # Try to click the post-login button
+                            click_post_login_button(page)
+                        
+                        # Wait a bit for more GraphQL requests to be captured
+                        print('\nCapturing GraphQL metadata...')
+                        page.wait_for_timeout(3000)
+                        
+                        # Extract username from cookies or page
+                        if not username:
+                            # Try to get username from cookies
+                            cookies = context.cookies()
+                            for cookie in cookies:
+                                if cookie['name'] == 'ds_user_id':
+                                    user_id = cookie['value']
+                                    # Use GraphQL to get username
+                                    graphql_client = GraphQLClient(page, None)
+                                    response_data = graphql_client.get_profile_info(user_id)
+                                    if response_data:
+                                        username = graphql_client.extract_username(response_data)
+                                    break
+                            
+                            # If still no username, try from login response
+                            if not username and response_data:
+                                username = response_data.get('username')
+                            
+                            # Fallback: ask user
+                            if not username:
+                                username = input("\nEnter your Instagram username (without @): ").strip()
+                            
+                            print(f"\n✓ Profile detected: @{username}")
+                        
+                        # Get captured GraphQL data
+                        graphql_data = interceptor.get_session_data()
+                        
+                        # Save the session state with GraphQL data
+                        print(f'\nSaving session for @{username}...')
+                        session_manager.save_context_state(context, username, graphql_data)
+                        
+                        # Wait a bit
+                        print('\nLogin successful! Session saved.')
+                        print('Waiting 10 seconds before closing...')
+                        page.wait_for_timeout(10000)
+                        
+                    elif login_status == '2fa':
+                        print('\nPlease complete 2FA in the browser')
+                        input('Press Enter when done...')
+                        
+                        # Extract username after 2FA
+                        if not username:
+                            cookies = context.cookies()
+                            for cookie in cookies:
+                                if cookie['name'] == 'ds_user_id':
+                                    user_id = cookie['value']
+                                    graphql_client = GraphQLClient(page, None)
+                                    response_data = graphql_client.get_profile_info(user_id)
+                                    if response_data:
+                                        username = graphql_client.extract_username(response_data)
+                                    break
+                            
+                            if not username:
+                                username = input("\nEnter your Instagram username (without @): ").strip()
+                            
+                            print(f"\n✓ Profile detected: @{username}")
+                        
+                        # Get captured GraphQL data after 2FA
+                        graphql_data = interceptor.get_session_data()
+                        # Save session after 2FA
+                        session_manager.save_context_state(context, username, graphql_data)
+                        
+                    elif login_status == 'checkpoint':
+                        print('\nPlease complete the checkpoint challenge in the browser')
+                        input('Press Enter when done...')
+                        
+                        # Extract username after checkpoint
+                        if not username:
+                            cookies = context.cookies()
+                            for cookie in cookies:
+                                if cookie['name'] == 'ds_user_id':
+                                    user_id = cookie['value']
+                                    graphql_client = GraphQLClient(page, None)
+                                    response_data = graphql_client.get_profile_info(user_id)
+                                    if response_data:
+                                        username = graphql_client.extract_username(response_data)
+                                    break
+                            
+                            if not username:
+                                username = input("\nEnter your Instagram username (without @): ").strip()
+                            
+                            print(f"\n✓ Profile detected: @{username}")
+                        
+                        # Get captured GraphQL data after checkpoint
+                        graphql_data = interceptor.get_session_data()
+                        # Save session after checkpoint
+                        session_manager.save_context_state(context, username, graphql_data)
+                        
+                    else:
+                        print('\nLogin was not successful')
+                        input('Press Enter to close browser...')
+                        
+                        # Cleanup for option 1
+                        context.close()
+                        browser.close()
+                        print('Browser closed')
+                    
+                except FileNotFoundError:
+                    print('Error: credentials.json not found')
+                except Exception as e:
+                    print(f'Error: {e}')
+                
+            elif choice == '3':
+                profiles = session_manager.list_profiles()
+                if not profiles:
+                    print("No saved profiles to clear")
                     continue
                 
-                # Option 1: New login needs temporary browser
-                if choice == '1':
-                    print('Starting new browser for login...')
-                    
-                    # Import from config for consistent settings
-                    from ig_scraper.config.env_config import IS_DOCKER, HEADLESS_MODE
-                    
-                    launch_args = {
-                        'headless': HEADLESS_MODE,
-                    }
-                    
-                    if IS_DOCKER:
-                        # Additional args for Docker environment
-                        launch_args['args'] = [
-                            '--no-sandbox',
-                            '--disable-setuid-sandbox',
-                            '--disable-dev-shm-usage',
-                            '--disable-gpu'
-                        ]
-                    
-                    browser = playwright.chromium.launch(**launch_args)
-                    context = browser.new_context(
-                        viewport={'width': 1920, 'height': 1080},
-                        locale='en-US',
-                        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                    )
-                    page = context.new_page()
-                    
-                    # Set up GraphQL interceptor
-                    interceptor = GraphQLInterceptor()
-                    interceptor.setup_interception(page)
-                    
-                    print('Navigating to Instagram login...')
-                    page.goto(Endpoints.LOGIN_PAGE)
-                    
-                    handle_cookie_banner(page)
-                    page.wait_for_timeout(1000)
-                    
-                    # Perform login and get result
-                    login_status, response_data = perform_login(page)
-                    
-                    if login_status == 'success':
-                        # Try to click the post-login button
-                        click_post_login_button(page)
-                    
-                    # Wait a bit for more GraphQL requests to be captured
-                    print('\nCapturing GraphQL metadata...')
-                    page.wait_for_timeout(3000)
-                    
-                    # Extract username from cookies or page
-                    if not username:
-                        # Try to get username from cookies
-                        cookies = context.cookies()
-                        for cookie in cookies:
-                            if cookie['name'] == 'ds_user_id':
-                                user_id = cookie['value']
-                                # Use GraphQL to get username
-                                graphql_client = GraphQLClient(page, None)
-                                response_data = graphql_client.get_profile_info(user_id)
-                                if response_data:
-                                    username = graphql_client.extract_username(response_data)
-                                break
-                        
-                        # If still no username, try from login response
-                        if not username and response_data:
-                            username = response_data.get('username')
-                        
-                        # Fallback: ask user
-                        if not username:
-                            username = input("\nEnter your Instagram username (without @): ").strip()
-                        
-                        print(f"\n✓ Profile detected: @{username}")
-                    
-                    # Get captured GraphQL data
-                    graphql_data = interceptor.get_session_data()
-                    
-                    # Save the session state with GraphQL data
-                    print(f'\nSaving session for @{username}...')
-                    session_manager.save_context_state(context, username, graphql_data)
-                    
-                    # Wait a bit
-                    print('\nLogin successful! Session saved.')
-                    print('Waiting 10 seconds before closing...')
-                    page.wait_for_timeout(10000)
-                    
-                elif login_status == '2fa':
-                    print('\nPlease complete 2FA in the browser')
-                    input('Press Enter when done...')
-                    
-                    # Extract username after 2FA
-                    if not username:
-                        cookies = context.cookies()
-                        for cookie in cookies:
-                            if cookie['name'] == 'ds_user_id':
-                                user_id = cookie['value']
-                                graphql_client = GraphQLClient(page, None)
-                                response_data = graphql_client.get_profile_info(user_id)
-                                if response_data:
-                                    username = graphql_client.extract_username(response_data)
-                                break
-                        
-                        if not username:
-                            username = input("\nEnter your Instagram username (without @): ").strip()
-                        
-                        print(f"\n✓ Profile detected: @{username}")
-                    
-                    # Get captured GraphQL data after 2FA
-                    graphql_data = interceptor.get_session_data()
-                    # Save session after 2FA
-                    session_manager.save_context_state(context, username, graphql_data)
-                    
-                elif login_status == 'checkpoint':
-                    print('\nPlease complete the checkpoint challenge in the browser')
-                    input('Press Enter when done...')
-                    
-                    # Extract username after checkpoint
-                    if not username:
-                        cookies = context.cookies()
-                        for cookie in cookies:
-                            if cookie['name'] == 'ds_user_id':
-                                user_id = cookie['value']
-                                graphql_client = GraphQLClient(page, None)
-                                response_data = graphql_client.get_profile_info(user_id)
-                                if response_data:
-                                    username = graphql_client.extract_username(response_data)
-                                break
-                        
-                        if not username:
-                            username = input("\nEnter your Instagram username (without @): ").strip()
-                        
-                        print(f"\n✓ Profile detected: @{username}")
-                    
-                    # Get captured GraphQL data after checkpoint
-                    graphql_data = interceptor.get_session_data()
-                    # Save session after checkpoint
-                    session_manager.save_context_state(context, username, graphql_data)
-                    
-                else:
-                    print('\nLogin was not successful')
-                    input('Press Enter to close browser...')
-                    
-                    # Cleanup for option 1
-                    context.close()
-                    browser.close()
-                    print('Browser closed')
-                    
-            except FileNotFoundError:
-                print('Error: credentials.json not found')
-            except Exception as e:
-                print(f'Error: {e}')
+                print("\n1: Clear specific profile")
+                print("2: Clear all profiles")
+                sub_choice = input("Select option: ")
                 
-        elif choice == '3':
-            profiles = session_manager.list_profiles()
-            if not profiles:
-                print("No saved profiles to clear")
-                continue
-            
-            print("\n1: Clear specific profile")
-            print("2: Clear all profiles")
-            sub_choice = input("Select option: ")
-            
-            if sub_choice == '1':
-                username = select_profile(session_manager)
-                if username:
-                    confirm = input(f"Are you sure you want to clear @{username}? (y/n): ")
+                if sub_choice == '1':
+                    username = select_profile(session_manager)
+                    if username:
+                        confirm = input(f"Are you sure you want to clear @{username}? (y/n): ")
+                        if confirm.lower() == 'y':
+                            session_manager.clear_session(username)
+                elif sub_choice == '2':
+                    confirm = input(f"Are you sure you want to clear ALL {len(profiles)} profiles? (y/n): ")
                     if confirm.lower() == 'y':
-                        session_manager.clear_session(username)
-            elif sub_choice == '2':
-                confirm = input(f"Are you sure you want to clear ALL {len(profiles)} profiles? (y/n): ")
-                if confirm.lower() == 'y':
-                    session_manager.clear_all_sessions()
+                        session_manager.clear_all_sessions()
                 
-        elif choice == '4':
-            first_automation(session_manager, playwright)
+            elif choice == '4':
+                first_automation(session_manager, playwright)
             
-        elif choice == '5':
-            scrape_following(session_manager, playwright)
+            elif choice == '5':
+                scrape_following(session_manager, playwright)
             
-        elif choice == '6':
-            scrape_explore(session_manager, playwright)
+            elif choice == '6':
+                scrape_explore(session_manager, playwright)
             
-        elif choice == '7':
-            massive_unfollow(session_manager, playwright)
+            elif choice == '7':
+                massive_unfollow(session_manager, playwright)
         
-        elif choice == '8':
-            BrowserManager.status()
+            elif choice == '8':
+                BrowserManager.status()
             
-        elif choice == '9':
-            print("\nClosing all browsers...")
-            BrowserManager.close_all()
-            print("✓ All browsers closed")
+            elif choice == '9':
+                print("\nClosing all browsers...")
+                BrowserManager.close_all()
+                print("✓ All browsers closed")
+            
+            elif choice.upper() == 'S':
+                # View screenshots
+                from pathlib import Path
+                from ig_scraper.config.env_config import IS_DOCKER
+                
+                screenshots_dir = Path('/var/www/app/screenshots') if IS_DOCKER else Path('screenshots')
+                
+                if not screenshots_dir.exists():
+                    print("No screenshots directory found")
+                    continue
+                
+                screenshots = sorted(screenshots_dir.glob('*.png'), key=lambda x: x.stat().st_mtime, reverse=True)
+                
+                if not screenshots:
+                    print("No screenshots found")
+                    continue
+                
+                print(f"\n📸 SCREENSHOTS ({len(screenshots)} files)")
+                print("="*60)
+                
+                for i, screenshot in enumerate(screenshots[:20], 1):  # Show last 20
+                    size_kb = screenshot.stat().st_size / 1024
+                    print(f"{i:2}. {screenshot.name} ({size_kb:.1f} KB)")
+                
+                print("="*60)
+                print(f"Screenshots directory: {screenshots_dir}")
+                
+                if IS_DOCKER:
+                    print("\nTo view screenshots from host:")
+                    print("docker cp instagram_scraper:/var/www/app/screenshots ./")
+            
+        except KeyboardInterrupt:
+            print("\n↩ Returning to menu...")
+            continue
 
 if __name__ == '__main__':
     main()
