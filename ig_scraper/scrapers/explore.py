@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from ..api import Endpoints, GraphQLClient
+from ..config import ConfigManager
 
 
 class ExploreScraper:
@@ -19,9 +20,21 @@ class ExploreScraper:
         self.rank_token = str(uuid.uuid4())  # Generate unique rank token for session
         self.search_session_id = str(uuid.uuid4())  # Generate search session ID
         
-        # Create directory for saving data
-        self.data_dir = Path("scraped_data") / "explore" / datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+        # Load configuration
+        self.config_manager = ConfigManager()
+        self.config = self.config_manager.load_config(username)
+        
+        # Get specific settings
+        explore_config = self.config['scraping']['explore']
+        self.default_query = explore_config['default_query']
+        self.save_responses = explore_config['save_responses']
+        self.response_dir = explore_config['response_dir']
+        self.pagination_delay = explore_config['pagination_delay']
+        
+        # Create directory for saving data if enabled
+        if self.save_responses:
+            self.data_dir = Path(self.response_dir) / "explore" / datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.data_dir.mkdir(parents=True, exist_ok=True)
         
     def verify_login_with_graphql(self) -> bool:
         """Verify we're still logged in using GraphQL test"""

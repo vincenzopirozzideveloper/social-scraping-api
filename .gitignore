@@ -29,3 +29,6 @@ sessions/
 
 # Scraped data
 scraped_data/
+
+# Action logs
+action_logs/

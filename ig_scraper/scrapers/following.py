@@ -3,6 +3,7 @@
 import json
 from typing import Dict, Any, Optional, List
 from ..api import Endpoints, GraphQLClient
+from ..config import ConfigManager
 
 
 class FollowingScraper:
@@ -12,6 +13,15 @@ class FollowingScraper:
         self.page = page
         self.session_manager = session_manager
         self.username = username
+        
+        # Load configuration
+        self.config_manager = ConfigManager()
+        self.config = self.config_manager.load_config(username)
+        
+        # Get specific settings
+        self.max_count = self.config['scraping']['following']['max_count']
+        self.default_count = self.config['scraping']['following']['default_count']
+        self.pagination_delay = self.config['scraping']['following']['pagination_delay']
         
     def verify_login_with_graphql(self) -> bool:
         """Verify we're still logged in using GraphQL test"""
@@ -58,9 +68,18 @@ class FollowingScraper:
             print(f"✗ Error verifying login: {e}")
             return False
     
-    def get_following(self, count: int = 12, max_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_following(self, count: Optional[int] = None, max_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get following list"""
         try:
+            # Use config values if not specified
+            if count is None:
+                count = self.default_count
+            
+            # Ensure count doesn't exceed maximum
+            if count > self.max_count:
+                print(f"⚠ Count {count} exceeds maximum {self.max_count}, using maximum")
+                count = self.max_count
+            
             # Get user ID from cookies
             cookies = self.page.context.cookies()
             user_id = None

@@ -10,6 +10,7 @@ from ig_scraper.auth import SessionManager
 from ig_scraper.scrapers.following import FollowingScraper
 from ig_scraper.scrapers.explore import ExploreScraper
 from ig_scraper.actions import UnfollowAction, ActionManager
+from ig_scraper.config import ConfigManager
 
 def signal_handler(sig, frame):
     print('\nClean exit.')
@@ -583,18 +584,49 @@ def select_profile(session_manager) -> Optional[str]:
         print("Invalid input")
         return None
 
-def batch_unfollow_test(session_manager):
-    """Test batch unfollow functionality"""
+def massive_unfollow(session_manager):
+    """Massive unfollow system - unfollows all following"""
     try:
         # Select profile
         username = select_profile(session_manager)
         if not username:
             return
         
+        # Load configuration
+        config_manager = ConfigManager()
+        config = config_manager.load_config(username)
+        
+        # Get unfollow settings
+        unfollow_config = config['actions']['unfollow']
+        batch_size = unfollow_config['batch_size']
+        safe_list = unfollow_config['safe_list']
+        pause_between = unfollow_config['pause_between_batches']
+        stop_on_error = unfollow_config['stop_on_error']
+        auto_confirm = unfollow_config['auto_confirm']
+        
+        # Get scraping settings
+        following_config = config['scraping']['following']
+        max_count = following_config['max_count']
+        
         from playwright.sync_api import sync_playwright
         
         with sync_playwright() as p:
-            print('Starting browser with saved session...')
+            print('\n' + '='*50)
+            print('MASSIVE UNFOLLOW SYSTEM')
+            print('='*50)
+            print(f'Profile: @{username}')
+            print(f'Batch size: {batch_size}')
+            print(f'Safe list: {len(safe_list)} users')
+            print(f'Pause between batches: {pause_between}s')
+            print('='*50)
+            
+            if not auto_confirm:
+                confirm = input("\n⚠ WARNING: This will unfollow ALL users (except safe list). Continue? (yes/no): ")
+                if confirm.lower() != 'yes':
+                    print("✓ Operation cancelled")
+                    return
+            
+            print('\nStarting browser...')
             browser = p.chromium.launch(headless=False)
             
             # Create context with saved session
@@ -608,69 +640,117 @@ def batch_unfollow_test(session_manager):
             # Create following scraper
             scraper = FollowingScraper(page, session_manager, username)
             
-            # Verify login with GraphQL test
+            # Verify login
             if not scraper.verify_login_with_graphql():
                 print("\n✗ Login verification failed. Please login again (option 1)")
                 context.close()
                 browser.close()
                 return
             
-            print("\n✓ Login verified! Getting following list...")
+            print("\n✓ Login verified! Starting massive unfollow...")
             
-            # Get following list (first 12)
-            following_data = scraper.get_following(count=12)
+            # Statistics
+            total_unfollowed = 0
+            total_failed = 0
+            total_skipped = 0
+            batch_number = 0
             
-            if following_data and following_data.get('users'):
-                users = following_data['users']
-                print(f"\n✓ Found {len(users)} users in following list")
+            # Create action manager and unfollow action
+            action_manager = ActionManager(page, session_manager, username)
+            unfollow_action = UnfollowAction(page, session_manager, username)
+            
+            # Main loop - continue until no more users to unfollow
+            while True:
+                batch_number += 1
+                print(f"\n{'='*50}")
+                print(f"BATCH #{batch_number}")
+                print(f"{'='*50}")
                 
-                # Display users to be unfollowed
-                print("\n" + "="*50)
-                print("USERS TO UNFOLLOW:")
-                print("="*50)
-                for i, user in enumerate(users, 1):
-                    print(f"{i}. @{user.get('username')} (ID: {user.get('id')})")
-                print("="*50)
+                # Get following list
+                print(f"Fetching up to {max_count} following...")
+                following_data = scraper.get_following(count=max_count)
                 
-                # Confirm action
-                confirm = input(f"\n⚠ Are you sure you want to unfollow these {len(users)} users? (yes/no): ")
-                if confirm.lower() != 'yes':
-                    print("✓ Operation cancelled")
-                    context.close()
-                    browser.close()
-                    return
+                if not following_data or not following_data.get('users'):
+                    print("✓ No more users to unfollow!")
+                    break
                 
-                # Create action manager and unfollow action
-                action_manager = ActionManager(page, session_manager, username)
-                unfollow_action = UnfollowAction(page, session_manager, username)
+                all_users = following_data['users']
+                total_count = following_data.get('count', len(all_users))
                 
-                # Queue all unfollow actions
-                print("\n→ Queueing unfollow actions...")
-                for user in users:
+                # Filter out safe list users
+                users_to_unfollow = []
+                for user in all_users:
+                    username_to_check = user.get('username')
+                    if username_to_check in safe_list:
+                        print(f"  → Skipping @{username_to_check} (in safe list)")
+                        total_skipped += 1
+                    else:
+                        users_to_unfollow.append(user)
+                        if len(users_to_unfollow) >= batch_size:
+                            break
+                
+                if not users_to_unfollow:
+                    print("✓ No more users to unfollow (all remaining are in safe list)")
+                    break
+                
+                print(f"\nProcessing {len(users_to_unfollow)} users...")
+                print(f"Total following: ~{total_count}")
+                print(f"This batch: {len(users_to_unfollow)}")
+                
+                # Queue unfollow actions for this batch
+                for user in users_to_unfollow:
                     action_manager.add_action(
                         unfollow_action,
                         target_id=str(user.get('id')),
                         target_username=user.get('username')
                     )
                 
-                # Execute the queue
-                print("\n→ Starting batch unfollow...")
+                # Execute the batch
+                print(f"\nExecuting batch #{batch_number}...")
                 results = action_manager.execute_queue(delay_between=True, save_progress=True)
                 
-                # Show failed actions if any
-                failed = action_manager.get_failed_actions()
-                if failed:
-                    print(f"\n⚠ {len(failed)} actions failed:")
-                    for result in failed:
-                        print(f"  - @{result.target_username}: {result.error_message}")
-                    
-                    # Ask if user wants to retry
-                    retry = input("\nRetry failed actions? (y/n): ")
-                    if retry.lower() == 'y':
-                        action_manager.retry_failed(delay_between=True)
+                # Update statistics
+                successful = sum(1 for r in results if r.success)
+                failed = len(results) - successful
+                total_unfollowed += successful
+                total_failed += failed
                 
-            else:
-                print("✗ Failed to get following list")
+                print(f"\nBatch #{batch_number} complete:")
+                print(f"  ✓ Unfollowed: {successful}")
+                print(f"  ✗ Failed: {failed}")
+                
+                # Check if we should stop on error
+                if failed > 0 and stop_on_error:
+                    print("\n✗ Stopping due to errors (stop_on_error is enabled)")
+                    break
+                
+                # Check if we've reached the end
+                if len(users_to_unfollow) < batch_size:
+                    print("\n✓ Reached the end of following list")
+                    break
+                
+                # Pause between batches
+                if pause_between > 0:
+                    print(f"\n⏸ Pausing for {pause_between} seconds between batches...")
+                    
+                    # Allow user to stop during pause
+                    print("Press Ctrl+C to stop...")
+                    try:
+                        page.wait_for_timeout(pause_between * 1000)
+                    except KeyboardInterrupt:
+                        print("\n⚠ Stopped by user")
+                        break
+            
+            # Final statistics
+            print(f"\n{'='*50}")
+            print(f"MASSIVE UNFOLLOW COMPLETE")
+            print(f"{'='*50}")
+            print(f"Total unfollowed: {total_unfollowed}")
+            print(f"Total failed: {total_failed}")
+            print(f"Total skipped (safe list): {total_skipped}")
+            print(f"Batches processed: {batch_number}")
+            print(f"Success rate: {(total_unfollowed / (total_unfollowed + total_failed) * 100) if (total_unfollowed + total_failed) > 0 else 0:.1f}%")
+            print(f"{'='*50}")
             
             print('\nWaiting 10 seconds before closing...')
             page.wait_for_timeout(10000)
@@ -679,14 +759,17 @@ def batch_unfollow_test(session_manager):
             browser.close()
             print('Browser closed')
             
+    except KeyboardInterrupt:
+        print("\n\n⚠ Operation interrupted by user")
+        print(f"Unfollowed {total_unfollowed} users before stopping")
     except Exception as e:
-        print(f'Error in batch_unfollow_test: {e}')
+        print(f'Error in massive_unfollow: {e}')
 
 def main():
     session_manager = SessionManager()
     
     while True:
-        choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Batch Unfollow Test\n0: Exit\n> ')
+        choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Massive Unfollow (ALL)\n0: Exit\n> ')
         if choice == '0':
             break
             
@@ -885,7 +968,7 @@ def main():
             scrape_explore(session_manager)
             
         elif choice == '7':
-            batch_unfollow_test(session_manager)
+            massive_unfollow(session_manager)
 
 if __name__ == '__main__':
     main()
