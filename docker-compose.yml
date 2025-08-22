@@ -1,0 +1,65 @@
+services:
+  instagram-scraper:
+    image: mcr.microsoft.com/playwright/python:v1.41.0-focal
+    container_name: instagram_scraper
+    restart: unless-stopped
+    volumes:
+      - /home/dev/dev/scraper-3:/var/www/app
+      - /home/dev/dev/scraper-3/browser_sessions:/var/www/app/browser_sessions
+      - /home/dev/dev/scraper-3/api_responses:/var/www/app/api_responses
+      - /home/dev/coder/.ssh:/home/coder/.ssh:ro
+      - /home/dev/dev:/home/coder/dev
+    networks:
+      Instagram_Network:
+        ipv4_address: 172.20.0.2
+    working_dir: /var/www/app
+    command: tail -f /dev/null
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/Rome
+    stdin_open: true
+    tty: true
+    ports:
+      - "8091:8080"
+
+  instagram-mariadb:
+    image: mariadb:latest
+    container_name: instagram_mariadb
+    restart: unless-stopped
+    command: --bind-address=0.0.0.0
+    environment:
+      MARIADB_ROOT_HOST: "%"
+      MYSQL_ROOT_PASSWORD: instagram_root_pwd
+      MYSQL_DATABASE: instagram_db
+      MYSQL_USER: instagram_user
+      MYSQL_PASSWORD: instagram_pwd
+      TZ: Europe/Rome
+    networks:
+      Instagram_Network:
+        ipv4_address: 172.20.0.3
+    volumes:
+      - /home/dev/data/instagram_mariadb:/var/lib/mysql
+    ports:
+      - "33066:3306"
+
+  instagram-phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: instagram_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: instagram-mariadb
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: instagram_root_pwd
+      TZ: Europe/Rome
+    networks:
+      Instagram_Network:
+        ipv4_address: 172.20.0.4
+    ports:
+      - "8092:80"
+    depends_on:
+      - instagram-mariadb
+
+networks:
+  Instagram_Network:
+    external: true

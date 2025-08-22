@@ -17,6 +17,13 @@ from ig_scraper.config.env_config import CREDENTIALS_PATH
 
 def signal_handler(sig, frame):
     print('\nClean exit.')
+    # Clean up browser locks on forced exit
+    try:
+        from ig_scraper.browser import BrowserManager
+        BrowserManager.close_all()
+        print('Browser locks cleaned.')
+    except:
+        pass
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -756,13 +763,36 @@ def massive_unfollow(session_manager, playwright):
                 print(f"[DEBUG] Consecutive empty: {consecutive_empty_responses}/{max_empty_responses}")
                 print("[DEBUG] Possible reasons: network error, API limit, session expired")
                 
-                if consecutive_empty_responses >= max_empty_responses:
-                    print(f"[DEBUG] Max empty responses reached ({max_empty_responses}). Stopping.")
-                    break
+                # IMPORTANT: If we have a max_id and got an error, retry WITHOUT max_id
+                # Instagram often returns stop/spam errors when using max_id
+                if last_max_id and consecutive_empty_responses == 1:
+                    print(f"\n⚠ STOP ERROR DETECTED - Retrying without max_id")
+                    print(f"[DEBUG] Previous max_id was: {last_max_id}")
+                    print(f"[DEBUG] Waiting {pause_between}s before retry...")
+                    page.wait_for_timeout(pause_between * 1000)
+                    
+                    # Retry without max_id
+                    print(f"[DEBUG] Retrying with count={max_count}, max_id=None")
+                    retry_data = scraper.get_following(count=max_count, max_id=None)
+                    
+                    if retry_data and retry_data.get('users'):
+                        print(f"✓ RETRY SUCCESS! Got {len(retry_data['users'])} users without max_id")
+                        following_data = retry_data
+                        consecutive_empty_responses = 0
+                        # Reset max_id to start fresh pagination
+                        last_max_id = None
+                    else:
+                        print(f"✗ Retry without max_id also failed")
                 
-                print(f"[DEBUG] Retrying... ({consecutive_empty_responses}/{max_empty_responses})")
-                page.wait_for_timeout(5000)  # Wait 5 seconds before retry
-                continue
+                # If still no data after retry
+                if not following_data:
+                    if consecutive_empty_responses >= max_empty_responses:
+                        print(f"[DEBUG] Max empty responses reached ({max_empty_responses}). Stopping.")
+                        break
+                    
+                    print(f"[DEBUG] Retrying... ({consecutive_empty_responses}/{max_empty_responses})")
+                    page.wait_for_timeout(5000)  # Wait 5 seconds before retry
+                    continue
                 
             # Reset empty response counter on successful response
             consecutive_empty_responses = 0

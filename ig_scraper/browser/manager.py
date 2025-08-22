@@ -181,9 +181,23 @@ class BrowserManager:
         for username in usernames:
             cls.close_browser(username)
         
-        # Clean up any remaining locks
+        # Clean up any remaining locks in memory
         for username in list(cls._lock_files.keys()):
             cls.release_lock(username)
+        
+        # Clean up ALL .lock files from disk (handles forced exits)
+        import os
+        sessions_dir = Path("browser_sessions")
+        if sessions_dir.exists():
+            for profile_dir in sessions_dir.iterdir():
+                if profile_dir.is_dir():
+                    lock_file = profile_dir / ".lock"
+                    if lock_file.exists():
+                        try:
+                            lock_file.unlink()
+                            print(f"[DEBUG] Cleaned up stale lock for @{profile_dir.name}")
+                        except Exception as e:
+                            print(f"[DEBUG] Could not remove lock for @{profile_dir.name}: {e}")
     
     @classmethod
     def get_active_profiles(cls) -> list:
