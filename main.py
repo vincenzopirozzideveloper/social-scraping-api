@@ -3,7 +3,9 @@ import signal
 import sys
 import json
 import time
+import os
 from typing import Optional
+from pathlib import Path
 
 from ig_scraper.api import Endpoints, GraphQLClient, GraphQLInterceptor
 from ig_scraper.auth import SessionManager
@@ -11,6 +13,7 @@ from ig_scraper.scrapers.following import FollowingScraper
 from ig_scraper.scrapers.explore import ExploreScraper
 from ig_scraper.actions import UnfollowAction, ActionManager
 from ig_scraper.config import ConfigManager
+from ig_scraper.config.env_config import CREDENTIALS_PATH
 
 def signal_handler(sig, frame):
     print('\nClean exit.')
@@ -194,7 +197,9 @@ def handle_2fa_with_backup(page, creds):
 
 def perform_login(page):
     try:
-        with open('credentials.json', 'r') as f:
+        # Use environment variable or default path
+        creds_path = CREDENTIALS_PATH if CREDENTIALS_PATH.exists() else Path('credentials.json')
+        with open(creds_path, 'r') as f:
             creds = json.load(f)
         
         print('Filling username field...')
@@ -1052,7 +1057,24 @@ def main():
                 # Option 1: New login needs temporary browser
                 if choice == '1':
                     print('Starting new browser for login...')
-                    browser = playwright.chromium.launch(headless=False)
+                    
+                    # Import from config for consistent settings
+                    from ig_scraper.config.env_config import IS_DOCKER, HEADLESS_MODE
+                    
+                    launch_args = {
+                        'headless': HEADLESS_MODE,
+                    }
+                    
+                    if IS_DOCKER:
+                        # Additional args for Docker environment
+                        launch_args['args'] = [
+                            '--no-sandbox',
+                            '--disable-setuid-sandbox',
+                            '--disable-dev-shm-usage',
+                            '--disable-gpu'
+                        ]
+                    
+                    browser = playwright.chromium.launch(**launch_args)
                     context = browser.new_context(
                         viewport={'width': 1920, 'height': 1080},
                         locale='en-US',

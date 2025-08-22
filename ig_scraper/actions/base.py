@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 import random
 from ..config import ConfigManager
+from ..config.env_config import ACTION_LOGS_DIR
 
 
 @dataclass
@@ -36,7 +37,7 @@ class BaseAction:
         self.action_type = "base"
         
         # Create logs directory
-        self.logs_dir = Path("action_logs") / username / datetime.now().strftime("%Y%m%d")
+        self.logs_dir = ACTION_LOGS_DIR / username / datetime.now().strftime("%Y%m%d")
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         
         # Load configuration for rate limiting

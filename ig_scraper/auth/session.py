@@ -5,13 +5,15 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import List
+from ig_scraper.config.env_config import BROWSER_SESSIONS_DIR
 
 
 class SessionManager:
     """Manages browser sessions and authentication state"""
     
-    def __init__(self, base_dir: str = "./browser_sessions"):
-        self.base_dir = Path(base_dir)
+    def __init__(self, base_dir: Optional[str] = None):
+        self.base_dir = Path(base_dir) if base_dir else BROWSER_SESSIONS_DIR
         self.profiles_dir = self.base_dir / "profiles"
         
         # Create directories if they don't exist
@@ -90,7 +92,7 @@ class SessionManager:
             'state_file': state_path
         }, graphql_data)
     
-    def list_profiles(self) -> list[str]:
+    def list_profiles(self) -> List[str]:
         """List all saved profiles"""
         profiles = []
         if self.profiles_dir.exists():

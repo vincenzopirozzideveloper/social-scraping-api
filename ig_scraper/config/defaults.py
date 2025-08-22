@@ -1,5 +1,15 @@
 """Default configuration values"""
 
+from pathlib import Path
+import os
+
+# Use environment variables if available, otherwise use relative paths
+API_RESPONSES_DIR = os.environ.get('IG_API_RESPONSES_DIR', 'api_responses')
+SCRAPED_DATA_DIR = os.environ.get('IG_SCRAPED_DATA_DIR', 'scraped_data')
+ACTION_LOGS_DIR = os.environ.get('IG_ACTION_LOGS_DIR', 'action_logs')
+BROWSER_SESSIONS_DIR = os.environ.get('IG_BROWSER_SESSIONS_DIR', 'browser_sessions')
+LOGS_DIR = os.environ.get('IG_LOGS_DIR', 'logs')
+
 DEFAULT_CONFIG = {
     "scraping": {
         "following": {
@@ -8,7 +18,7 @@ DEFAULT_CONFIG = {
             "pagination_delay": 3000,   # Delay between pagination requests (ms)
             "verify_login": True,       # Verify login before scraping
             "save_responses": False,    # Save API responses to file
-            "response_dir": "api_responses/following"  # Directory for saved responses
+            "response_dir": f"{API_RESPONSES_DIR}/following"  # Directory for saved responses
         },
         "followers": {
             "max_count": 200,
@@ -19,7 +29,7 @@ DEFAULT_CONFIG = {
         "explore": {
             "default_query": "news",
             "save_responses": True,     # Save all responses to files
-            "response_dir": "scraped_data",
+            "response_dir": SCRAPED_DATA_DIR,
             "pagination_delay": 3000
         }
     },
@@ -66,13 +76,13 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "level": "INFO",               # DEBUG, INFO, WARNING, ERROR
         "save_to_file": True,
-        "log_dir": "logs",
+        "log_dir": LOGS_DIR,
         "action_logs": True,           # Log all actions
         "response_logs": False         # Log API responses (verbose)
     },
     "session": {
         "auto_save": True,             # Automatically save session after login
-        "session_dir": "browser_sessions",
+        "session_dir": BROWSER_SESSIONS_DIR,
         "max_session_age": 30,         # Days before session is considered expired
         "verify_on_startup": True      # Verify session is still valid on startup
     },
