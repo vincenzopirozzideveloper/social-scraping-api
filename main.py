@@ -3,6 +3,7 @@ import signal
 import sys
 import json
 import time
+from typing import Optional
 
 from ig_scraper.api import Endpoints, GraphQLClient, GraphQLInterceptor
 from ig_scraper.auth import SessionManager
@@ -24,6 +25,162 @@ def handle_cookie_banner(page):
         return True
     except TimeoutError:
         print('Cookie banner not found')
+        return False
+
+def handle_2fa_with_backup(page, creds):
+    """Handle 2FA using backup codes (supports multiple codes)"""
+    try:
+        print('\n' + '='*50)
+        print('HANDLING 2FA WITH BACKUP CODES')
+        print('='*50)
+        
+        # Get backup codes from credentials
+        backup_codes = creds.get('backup-code', creds.get('backup_code', []))
+        
+        # Convert to list if it's a single string
+        if isinstance(backup_codes, str):
+            backup_codes = [backup_codes]
+        
+        if not backup_codes:
+            print('✗ No backup codes found in credentials.json')
+            print('  Please add "backup-code" field to credentials.json')
+            return False
+        
+        print(f'→ Found {len(backup_codes)} backup code(s) to try')
+        
+        # Wait for 2FA page to load
+        page.wait_for_timeout(2000)
+        
+        # Navigate to backup code option (only once)
+        backup_button_selector = 'button:has-text("Try Another Way"), button:has-text("Use Backup Code")'
+        try:
+            page.wait_for_selector(backup_button_selector, timeout=5000)
+            page.click(backup_button_selector)
+            print('✓ Clicked on backup code option')
+            page.wait_for_timeout(1000)
+        except:
+            print('→ Backup code option not found, might already be on backup page')
+        
+        # Look for the specific button to switch to backup codes
+        specific_button = 'div.x889kno.xyri2b.x1a8lsjc.x1c1uobl > form > div:nth-child(5) > button'
+        try:
+            if page.query_selector(specific_button):
+                page.click(specific_button)
+                print('✓ Switched to backup code entry')
+                page.wait_for_timeout(1000)
+        except:
+            pass
+        
+        # Try each backup code
+        for i, code in enumerate(backup_codes, 1):
+            print(f'\n→ Attempt {i}/{len(backup_codes)}: Using code {code[:4]}****')
+            
+            # Find and fill the backup code input
+            code_input_selectors = [
+                'input[name="verificationCode"]',
+                'input[aria-label*="code"]',
+                'input[aria-label*="Code"]',
+                'input[type="tel"]',
+                'input[type="text"][maxlength="8"]',
+                'input[placeholder*="code"]'
+            ]
+            
+            filled = False
+            for selector in code_input_selectors:
+                try:
+                    input_field = page.query_selector(selector)
+                    if input_field:
+                        # Clear the field first
+                        input_field.click()
+                        page.keyboard.press('Control+A')
+                        page.keyboard.press('Delete')
+                        # Fill with new code
+                        page.fill(selector, code)
+                        print(f'  ✓ Code entered')
+                        filled = True
+                        break
+                except:
+                    continue
+            
+            if not filled:
+                print('  ✗ Could not find backup code input field')
+                continue
+            
+            # Submit the backup code and wait for response
+            try:
+                # Listen for the verification response
+                with page.expect_response("**/accounts/login/ajax/two_factor/**", timeout=10000) as response_info:
+                    # Submit the code
+                    submit_selectors = [
+                        'button:has-text("Confirm")',
+                        'button:has-text("Submit")',
+                        'button:has-text("Verify")',
+                        'button[type="button"]:not(:disabled)',
+                        'form button[type="button"]'
+                    ]
+                    
+                    submitted = False
+                    for selector in submit_selectors:
+                        try:
+                            button = page.query_selector(selector)
+                            if button and button.is_enabled():
+                                button.click()
+                                print('  ✓ Code submitted')
+                                submitted = True
+                                break
+                        except:
+                            continue
+                    
+                    if not submitted:
+                        print('  → Trying Enter key')
+                        page.keyboard.press('Enter')
+                
+                # Check the response
+                verification_response = response_info.value
+                response_data = verification_response.json()
+                
+                if response_data.get('authenticated') or response_data.get('status') == 'ok':
+                    print('  ✓ SUCCESS! Backup code accepted')
+                    return True
+                elif response_data.get('error_type') in ['invalid_verification_code', 'invalid_verficaition_code']:
+                    # Note: Instagram has a typo in their error type (verficaition)
+                    print(f'  ✗ Invalid code: {response_data.get("message", "Code rejected")}')
+                    
+                    # Wait and check if we're actually logged in (sometimes the error is misleading)
+                    page.wait_for_timeout(2000)
+                    if page.query_selector('svg[aria-label="Profile"]') or page.query_selector('svg[aria-label="Home"]'):
+                        print('  ✓ Actually logged in despite error message!')
+                        return True
+                    
+                    if i < len(backup_codes):
+                        print(f'  → Waiting 3 seconds before next attempt...')
+                        page.wait_for_timeout(3000)
+                    continue
+                else:
+                    print(f'  ⚠ Unexpected response: {response_data}')
+                    # Still check if we're logged in
+                    page.wait_for_timeout(2000)
+                    if page.query_selector('svg[aria-label="Profile"]') or page.query_selector('svg[aria-label="Home"]'):
+                        print('  ✓ Login successful despite unexpected response!')
+                        return True
+                    
+            except Exception as e:
+                # No response or timeout, check if we're logged in
+                page.wait_for_timeout(3000)
+                if page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]'):
+                    print('  ✓ SUCCESS! Login detected')
+                    return True
+                else:
+                    print(f'  ✗ Code might have failed: {str(e)[:100]}')
+                    if i < len(backup_codes):
+                        print(f'  → Waiting 3 seconds before next attempt...')
+                        page.wait_for_timeout(3000)
+        
+        print('\n✗ All backup codes exhausted. Manual intervention required.')
+        return False
+        
+    except Exception as e:
+        print(f'✗ Error handling 2FA: {e}')
         return False
 
 def perform_login(page):
@@ -70,7 +227,22 @@ def perform_login(page):
             return 'success', data
         elif data.get('two_factor_required'):
             print('⚠ Two-factor authentication required')
-            return '2fa', data
+            
+            # Check if we have backup codes and try to use them
+            if creds.get('backup-code') or creds.get('backup_code'):
+                print('→ Attempting to use backup code...')
+                if handle_2fa_with_backup(page, creds):
+                    print('✓ 2FA completed successfully with backup code!')
+                    # Set authenticated flag since we completed 2FA
+                    data['authenticated'] = True
+                    data['status'] = 'ok'
+                    return 'success', data
+                else:
+                    print('⚠ All backup codes failed, manual 2FA required')
+                    return '2fa', data
+            else:
+                print('  No backup code in credentials, manual 2FA required')
+                return '2fa', data
         elif data.get('checkpoint_url'):
             print('⚠ Checkpoint challenge required')
             print(f'  Checkpoint URL: {data.get("checkpoint_url")}')
@@ -122,14 +294,9 @@ def click_post_login_button(page):
 def first_automation(session_manager):
     """First automation: Login with saved session and make GraphQL request"""
     try:
-        # Load credentials to get username
-        with open('credentials.json', 'r') as f:
-            creds = json.load(f)
-        username = creds['email'].split('@')[0]
-        
-        # Check if we have a saved session
-        if not session_manager.has_saved_session(username):
-            print("No saved session found. Please login first (option 1)")
+        # Select profile
+        username = select_profile(session_manager)
+        if not username:
             return
         
         from playwright.sync_api import sync_playwright
@@ -227,14 +394,9 @@ def first_automation(session_manager):
 def scrape_following(session_manager):
     """Scrape following list"""
     try:
-        # Load credentials to get username
-        with open('credentials.json', 'r') as f:
-            creds = json.load(f)
-        username = creds['email'].split('@')[0]
-        
-        # Check if we have a saved session
-        if not session_manager.has_saved_session(username):
-            print("No saved session found. Please login first (option 1)")
+        # Select profile
+        username = select_profile(session_manager)
+        if not username:
             return
         
         from playwright.sync_api import sync_playwright
@@ -297,14 +459,9 @@ def scrape_following(session_manager):
 def scrape_explore(session_manager):
     """Scrape explore/search results"""
     try:
-        # Load credentials to get username
-        with open('credentials.json', 'r') as f:
-            creds = json.load(f)
-        username = creds['email'].split('@')[0]
-        
-        # Check if we have a saved session
-        if not session_manager.has_saved_session(username):
-            print("No saved session found. Please login first (option 1)")
+        # Select profile
+        username = select_profile(session_manager)
+        if not username:
             return
         
         from playwright.sync_api import sync_playwright
@@ -387,27 +544,76 @@ def scrape_explore(session_manager):
     except Exception as e:
         print(f'Error in scrape_explore: {e}')
 
+def select_profile(session_manager) -> Optional[str]:
+    """Let user select a profile from saved sessions"""
+    profiles = session_manager.list_profiles()
+    
+    if not profiles:
+        print("No saved profiles found. Please login first (option 1)")
+        return None
+    
+    print("\n" + "="*50)
+    print("SAVED PROFILES")
+    print("="*50)
+    
+    for i, profile in enumerate(profiles, 1):
+        info = session_manager.get_profile_info(profile)
+        if info:
+            print(f"{i}. @{profile}")
+            print(f"   Last saved: {info['last_saved']}")
+            print(f"   GraphQL data: {'Yes' if info['has_graphql'] else 'No'}")
+    
+    print("="*50)
+    
+    try:
+        choice = input(f"\nSelect profile (1-{len(profiles)}) or 0 to cancel: ")
+        if choice == '0':
+            return None
+        
+        idx = int(choice) - 1
+        if 0 <= idx < len(profiles):
+            selected = profiles[idx]
+            print(f"\n✓ Selected profile: @{selected}")
+            return selected
+        else:
+            print("Invalid selection")
+            return None
+    except ValueError:
+        print("Invalid input")
+        return None
+
 def main():
     session_manager = SessionManager()
     
     while True:
-        choice = input('\n1: Login\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n0: Exit\n> ')
+        choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n0: Exit\n> ')
         if choice == '0':
             break
             
         elif choice in ['1', '2']:
             try:
-                # Load credentials
-                with open('credentials.json', 'r') as f:
-                    creds = json.load(f)
-                username = creds['email'].split('@')[0]  # Use email prefix as username
+                # For login with saved session, select profile first
+                if choice == '2':
+                    username = select_profile(session_manager)
+                    if not username:
+                        continue
+                else:
+                    username = None  # Will be determined after login
                 
                 with sync_playwright() as p:
                     print('Starting browser...')
                     browser = p.chromium.launch(headless=False)
                     
-                    # Create context with storage state
-                    context = session_manager.create_browser_context(browser, username)
+                    # Create context with storage state (if username is known)
+                    if username:
+                        context = session_manager.create_browser_context(browser, username)
+                    else:
+                        # Create clean context for new login
+                        context = browser.new_context(
+                            viewport={'width': 1920, 'height': 1080},
+                            locale='en-US',
+                            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        )
                     page = context.new_page()
                     
                     # Check if we need to login
@@ -447,11 +653,35 @@ def main():
                             print('\nCapturing GraphQL metadata...')
                             page.wait_for_timeout(3000)
                             
+                            # Extract username from cookies or page
+                            if not username:
+                                # Try to get username from cookies
+                                cookies = context.cookies()
+                                for cookie in cookies:
+                                    if cookie['name'] == 'ds_user_id':
+                                        user_id = cookie['value']
+                                        # Use GraphQL to get username
+                                        graphql_client = GraphQLClient(page, None)
+                                        response_data = graphql_client.get_profile_info(user_id)
+                                        if response_data:
+                                            username = graphql_client.extract_username(response_data)
+                                        break
+                                
+                                # If still no username, try from login response
+                                if not username and response_data:
+                                    username = response_data.get('username')
+                                
+                                # Fallback: ask user
+                                if not username:
+                                    username = input("\nEnter your Instagram username (without @): ").strip()
+                                
+                                print(f"\n✓ Profile detected: @{username}")
+                            
                             # Get captured GraphQL data
                             graphql_data = interceptor.get_session_data()
                             
                             # Save the session state with GraphQL data
-                            print('\nSaving session for future use...')
+                            print(f'\nSaving session for @{username}...')
                             session_manager.save_context_state(context, username, graphql_data)
                             
                             # Wait a bit
@@ -462,6 +692,24 @@ def main():
                         elif login_status == '2fa':
                             print('\nPlease complete 2FA in the browser')
                             input('Press Enter when done...')
+                            
+                            # Extract username after 2FA
+                            if not username:
+                                cookies = context.cookies()
+                                for cookie in cookies:
+                                    if cookie['name'] == 'ds_user_id':
+                                        user_id = cookie['value']
+                                        graphql_client = GraphQLClient(page, None)
+                                        response_data = graphql_client.get_profile_info(user_id)
+                                        if response_data:
+                                            username = graphql_client.extract_username(response_data)
+                                        break
+                                
+                                if not username:
+                                    username = input("\nEnter your Instagram username (without @): ").strip()
+                                
+                                print(f"\n✓ Profile detected: @{username}")
+                            
                             # Get captured GraphQL data after 2FA
                             graphql_data = interceptor.get_session_data()
                             # Save session after 2FA
@@ -470,6 +718,24 @@ def main():
                         elif login_status == 'checkpoint':
                             print('\nPlease complete the checkpoint challenge in the browser')
                             input('Press Enter when done...')
+                            
+                            # Extract username after checkpoint
+                            if not username:
+                                cookies = context.cookies()
+                                for cookie in cookies:
+                                    if cookie['name'] == 'ds_user_id':
+                                        user_id = cookie['value']
+                                        graphql_client = GraphQLClient(page, None)
+                                        response_data = graphql_client.get_profile_info(user_id)
+                                        if response_data:
+                                            username = graphql_client.extract_username(response_data)
+                                        break
+                                
+                                if not username:
+                                    username = input("\nEnter your Instagram username (without @): ").strip()
+                                
+                                print(f"\n✓ Profile detected: @{username}")
+                            
                             # Get captured GraphQL data after checkpoint
                             graphql_data = interceptor.get_session_data()
                             # Save session after checkpoint
@@ -489,13 +755,25 @@ def main():
                 print(f'Error: {e}')
                 
         elif choice == '3':
-            try:
-                with open('credentials.json', 'r') as f:
-                    creds = json.load(f)
-                username = creds['email'].split('@')[0]
-                session_manager.clear_session(username)
-            except Exception as e:
-                print(f'Error clearing session: {e}')
+            profiles = session_manager.list_profiles()
+            if not profiles:
+                print("No saved profiles to clear")
+                continue
+            
+            print("\n1: Clear specific profile")
+            print("2: Clear all profiles")
+            sub_choice = input("Select option: ")
+            
+            if sub_choice == '1':
+                username = select_profile(session_manager)
+                if username:
+                    confirm = input(f"Are you sure you want to clear @{username}? (y/n): ")
+                    if confirm.lower() == 'y':
+                        session_manager.clear_session(username)
+            elif sub_choice == '2':
+                confirm = input(f"Are you sure you want to clear ALL {len(profiles)} profiles? (y/n): ")
+                if confirm.lower() == 'y':
+                    session_manager.clear_all_sessions()
                 
         elif choice == '4':
             first_automation(session_manager)

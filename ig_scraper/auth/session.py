@@ -12,18 +12,24 @@ class SessionManager:
     
     def __init__(self, base_dir: str = "./browser_sessions"):
         self.base_dir = Path(base_dir)
-        self.states_dir = self.base_dir / "states"
+        self.profiles_dir = self.base_dir / "profiles"
         
         # Create directories if they don't exist
-        self.states_dir.mkdir(parents=True, exist_ok=True)
+        self.profiles_dir.mkdir(parents=True, exist_ok=True)
+    
+    def get_profile_dir(self, username: str) -> Path:
+        """Get profile directory for a user"""
+        profile_dir = self.profiles_dir / username
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        return profile_dir
     
     def get_state_path(self, username: str) -> str:
         """Get storage state file path for a user"""
-        return str(self.states_dir / f"{username}_state.json")
+        return str(self.get_profile_dir(username) / "state.json")
     
     def save_session_info(self, username: str, data: Dict[str, Any], graphql_data: Optional[Dict[str, Any]] = None):
         """Save additional session information including GraphQL metadata"""
-        info_path = self.base_dir / f"{username}_info.json"
+        info_path = self.get_profile_dir(username) / "info.json"
         data['last_saved'] = datetime.now().isoformat()
         data['username'] = username
         
@@ -39,7 +45,7 @@ class SessionManager:
     
     def load_session_info(self, username: str) -> Optional[Dict[str, Any]]:
         """Load session information if it exists"""
-        info_path = self.base_dir / f"{username}_info.json"
+        info_path = self.get_profile_dir(username) / "info.json"
         
         if info_path.exists():
             with open(info_path, 'r') as f:
@@ -84,17 +90,45 @@ class SessionManager:
             'state_file': state_path
         }, graphql_data)
     
+    def list_profiles(self) -> list[str]:
+        """List all saved profiles"""
+        profiles = []
+        if self.profiles_dir.exists():
+            for profile_dir in self.profiles_dir.iterdir():
+                if profile_dir.is_dir():
+                    info_path = profile_dir / "info.json"
+                    if info_path.exists():
+                        profiles.append(profile_dir.name)
+        return sorted(profiles)
+    
+    def get_profile_info(self, username: str) -> Optional[Dict[str, Any]]:
+        """Get basic info about a profile"""
+        info = self.load_session_info(username)
+        if info:
+            return {
+                'username': username,
+                'last_saved': info.get('last_saved', 'Unknown'),
+                'has_graphql': 'graphql' in info
+            }
+        return None
+    
     def clear_session(self, username: str):
         """Clear saved session for a user"""
+        import shutil
         
-        # Remove state file
-        state_path = Path(self.get_state_path(username))
-        if state_path.exists():
-            state_path.unlink()
-        
-        # Remove info file
-        info_path = self.base_dir / f"{username}_info.json"
-        if info_path.exists():
-            info_path.unlink()
+        # Remove entire profile directory
+        profile_dir = self.get_profile_dir(username)
+        if profile_dir.exists():
+            shutil.rmtree(profile_dir)
         
         print(f"✓ Session cleared for {username}")
+    
+    def clear_all_sessions(self):
+        """Clear all saved sessions"""
+        import shutil
+        
+        if self.profiles_dir.exists():
+            shutil.rmtree(self.profiles_dir)
+            self.profiles_dir.mkdir(parents=True, exist_ok=True)
+        
+        print("✓ All sessions cleared")
