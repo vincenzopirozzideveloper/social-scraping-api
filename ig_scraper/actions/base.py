@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 import random
+from ..config import ConfigManager
 
 
 @dataclass
@@ -38,9 +39,16 @@ class BaseAction:
         self.logs_dir = Path("action_logs") / username / datetime.now().strftime("%Y%m%d")
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         
-        # Rate limiting settings
-        self.min_delay = 2  # Minimum seconds between actions
-        self.max_delay = 5  # Maximum seconds between actions
+        # Load configuration for rate limiting
+        config_manager = ConfigManager()
+        config = config_manager.load_config(username)
+        rate_config = config['actions']['rate_limiting']
+        
+        # Rate limiting settings from configuration
+        self.min_delay = rate_config['min_delay']  # Minimum seconds between actions
+        self.max_delay = rate_config['max_delay']  # Maximum seconds between actions
+        
+        print(f"[DEBUG] BaseAction initialized with delays: {self.min_delay}s - {self.max_delay}s")
         
     def get_headers(self) -> Dict[str, str]:
         """Get headers for the request"""
@@ -123,6 +131,8 @@ class BaseAction:
         """Execute the action request"""
         try:
             print(f"\n→ Executing {self.action_type} request...")
+            print(f"[DEBUG] Request URL: {url}")
+            print(f"[DEBUG] Request body params: {body[:100]}...")
             
             # Use page.evaluate to make the request
             response = self.page.evaluate(f"""
@@ -142,19 +152,42 @@ class BaseAction:
                 }})()
             """)
             
+            print(f"[DEBUG] Response HTTP status: {response['status']}")
+            print(f"[DEBUG] Response has data: {'data' in response}")
+            
+            if response['data']:
+                print(f"[DEBUG] Response status field: {response['data'].get('status', 'N/A')}")
+                print(f"[DEBUG] Response keys: {list(response['data'].keys())[:5]}...")
+            
+            # Check for rate limiting
+            if response['status'] == 429:
+                print(f"[DEBUG] ⚠ RATE LIMITED - HTTP 429")
+                print(f"[DEBUG] Response: {response.get('data', 'No data')}")
+                return False, response['data']
+            
+            # Check for success
             if response['status'] == 200 and response['data'].get('status') == 'ok':
+                print(f"[DEBUG] ✓ Action successful")
                 return True, response['data']
             else:
+                print(f"[DEBUG] ✗ Action failed")
+                print(f"[DEBUG] Failure reason: HTTP {response['status']}, status: {response['data'].get('status', 'unknown')}")
+                if response['data'].get('message'):
+                    print(f"[DEBUG] Error message: {response['data']['message']}")
                 return False, response['data']
                 
         except Exception as e:
             print(f"✗ Error executing request: {e}")
+            print(f"[DEBUG] Exception type: {type(e).__name__}")
+            print(f"[DEBUG] Exception details: {str(e)}")
             return False, None
     
     def wait_with_variance(self):
         """Wait with random variance for rate limiting"""
         delay = random.uniform(self.min_delay, self.max_delay)
         print(f"  → Waiting {delay:.1f} seconds...")
+        print(f"[DEBUG] Delay range: {self.min_delay}s - {self.max_delay}s")
+        print(f"[DEBUG] Actual delay: {delay:.2f}s")
         time.sleep(delay)
     
     def log_action(self, result: ActionResult):

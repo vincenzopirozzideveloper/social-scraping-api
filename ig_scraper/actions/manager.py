@@ -80,11 +80,13 @@ class ActionManager:
         total = len(self.queue)
         if total == 0:
             print("Queue is empty")
+            print("[DEBUG] No actions to execute")
             return []
         
         print(f"\n{'='*50}")
         print(f"EXECUTING ACTION QUEUE")
         print(f"Total actions: {total}")
+        print(f"Delay between actions: {delay_between}")
         print(f"{'='*50}")
         
         # Reset stats
@@ -98,11 +100,18 @@ class ActionManager:
         self.results = []
         session_file = self.stats_dir / f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         
+        print(f"[DEBUG] Starting queue execution with {total} actions")
+        consecutive_failures = 0
+        max_consecutive_failures = 5
+        
         while self.queue:
             queued_action = self.queue.popleft()
             current = total - len(self.queue)
             
             print(f"\n[{current}/{total}] Executing {queued_action.action.action_type}...")
+            print(f"[DEBUG] Target: @{queued_action.target_username} (ID: {queued_action.target_id})")
+            print(f"[DEBUG] Queue remaining: {len(self.queue)}")
+            print(f"[DEBUG] Stats so far - Success: {self.stats['successful']}, Failed: {self.stats['failed']}")
             
             try:
                 # Execute the action
@@ -115,24 +124,41 @@ class ActionManager:
                 
                 if result.success:
                     self.stats['successful'] += 1
+                    consecutive_failures = 0
+                    print(f"[DEBUG] Action successful, resetting consecutive failures")
                 else:
                     self.stats['failed'] += 1
+                    consecutive_failures += 1
+                    print(f"[DEBUG] Action failed, consecutive failures: {consecutive_failures}/{max_consecutive_failures}")
                 
                 # Save progress
                 if save_progress:
                     self.save_session_state(session_file)
                 
+                # Check for too many consecutive failures
+                if consecutive_failures >= max_consecutive_failures:
+                    print(f"\n[DEBUG] ⚠ STOPPING - Too many consecutive failures ({consecutive_failures})")
+                    print(f"[DEBUG] This may indicate rate limiting or session issues")
+                    self.stats['skipped'] = len(self.queue)
+                    break
+                
                 # Add delay between actions (except for the last one)
                 if delay_between and len(self.queue) > 0:
+                    print(f"[DEBUG] Adding delay between actions")
                     queued_action.action.wait_with_variance()
+                else:
+                    print(f"[DEBUG] No delay - last action or delay disabled")
                     
             except KeyboardInterrupt:
                 print("\n⚠ Execution interrupted by user")
+                print(f"[DEBUG] Actions completed: {current}/{total}")
                 self.stats['skipped'] = len(self.queue)
                 break
             except Exception as e:
                 print(f"✗ Error executing action: {e}")
+                print(f"[DEBUG] Exception type: {type(e).__name__}")
                 self.stats['failed'] += 1
+                consecutive_failures += 1
                 
                 # Create error result
                 error_result = ActionResult(

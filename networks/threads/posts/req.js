@@ -1,0 +1,32 @@
+fetch("https://www.threads.com/graphql/query", {
+  "headers": {
+    "accept": "*/*",
+    "accept-language": "en-GB,en;q=0.9,it-IT;q=0.8,it;q=0.7,en-US;q=0.6",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "priority": "u=1, i",
+    "sec-ch-prefers-color-scheme": "light",
+    "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\"",
+    "sec-ch-ua-full-version-list": "\"Not;A=Brand\";v=\"99.0.0.0\", \"Google Chrome\";v=\"139.0.7258.128\", \"Chromium\";v=\"139.0.7258.128\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-model": "\"\"",
+    "sec-ch-ua-platform": "\"Windows\"",
+    "sec-ch-ua-platform-version": "\"19.0.0\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-asbd-id": "359341",
+    "x-bloks-version-id": "ab14bea8dc9f2199ab3a5cc6f7289a465bb4f8d83072e758ac7abe3eb7c3adfd",
+    "x-csrftoken": "9YJ6hd3Rx4xCPXjjGPMBihyGXwRa56XM",
+    "x-fb-friendly-name": "BarcelonaPostPageDirectQuery",
+    "x-fb-lsd": "i9TTOGhpoXHM4wgIwUGrLG",
+    "x-ig-app-id": "238260118697367",
+    "x-root-field-name": "xdt_api__v1__text_feed__media_id__replies__connection"
+  },
+  "referrer": "https://www.threads.com/@vincenzopirozzi.developer?hl=it",
+  "body": "av=17841464453325202&__user=0&__a=1&__req=72&__hs=20322.HYP%3Abarcelona_web_pkg.2.1...0&dpr=1&__ccg=EXCELLENT&__rev=1026212891&__s=l5ns0m%3Ak9qhqr%3Akpmmkc&__hsi=7541443239268094780&__dyn=7xeUjG1mxu1syUbFp41twpUnwgU29zEdEc8co2qwJw5ux609vCwjE1EE2Cw8G11wBz81s8hwGwQwoEcE7O2l0Fwqo31w9O1lwlE-U2zxe2GewGw9a361qw8Xxm16wa-0raazo7u0zE2ZwrUdUbGw4mwr86C2q6olg8o4DhA6bwNwGAwHxW17y9UjgbVE-19xW1zxm4o4G1tK1UwYwtE&__csr=glsp4isqzN2bfblEQJAE_l4FbRluHil6HAijJRSQHjykpFcyy9HGjVEKF9AFF49cbw05-aKi9x2i7jw9O2O0jO0GU1jA3qQ1OwH2MP4a3R1R0nEn5wMBV1d252Gyo8A2-bwQ8ElicUAc0ShU1-xe9gOgE-210vUx0UCzd5Cg7i0fnhk3q9w6czVE0lSwlosg39w997eh1e1Le7gMo83Uz40Cy80De7Emg6K6B4jAyoyUoLgW0hrxV0kopw9yCawlEvxy18yaCmkughykaVi06hw11x5wJDhE6maUwo1yCt12ew&__hsdp=g8L2qs4hM41d7m51qC7E9BiEv1gN6818BDsIfIInEr0yMJ2cYmddJ7iMyol5iFIcQMQwXj14hO8IMHy8gaI634zz1u9chyN27z1Mjg82DgigQwVmpeayemnxAlkRxvwhO122x0kUmxe5n-58Wm16Cxe49axmm2x0AK58cEjgS4EG6oowAze2y58a43rCx69wEwFy8qyES584tyoFw&__hblp=4g7J0cS4UOcg9EhG2mF8lg4abgZ9bw-xKdz-dxG8AouyEvwgU-FoW69awQy88UgyEvHz8vxqUC8xeUGUS9xOEF0HK58kDwgo1eotzFE-bDgmz4q6rxi2Sdh95VeFqyoGcw_yEOm4Uuxa9x3iUG9xOt5yVE-EoCwyDjxpoG49Wz84qeo&__sjsp=g8L6lqs4hM41d7m51qC7xFaxY534ow4ymtOM-ONuxIa8Y4YbgzeoMQSUOww4hkHjgdE890h229xe0Hh0t70cklkS09DwOw&__comet_req=29&hl=it&fb_dtsg=NAfv308dB0kfC5hGsk1bE_BnptIkNyhmqMk5FJ7TynyRwPaGQQrjlPg%3A17865379441060568%3A1755851073&jazoest=26406&lsd=i9TTOGhpoXHM4wgIwUGrLG&__spin_r=1026212891&__spin_b=trunk&__spin_t=1755879083&__crn=comet.threads.BarcelonaProfileThreadsColumnRoute&fb_api_caller_class=RelayModern&fb_api_req_friendly_name=BarcelonaPostPageDirectQuery&variables=%7B%22postID%22%3A%223704791668103569429%22%2C%22sort_order%22%3A%22TOP%22%2C%22__relay_internal__pv__BarcelonaIsLoggedInrelayprovider%22%3Atrue%2C%22__relay_internal__pv__BarcelonaShouldShowFediverseM1Featuresrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaHasInlineReplyComposerrelayprovider%22%3Atrue%2C%22__relay_internal__pv__BarcelonaHasPermalinkInlineExpansionrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaHasEventBadgerelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaIsSearchDiscoveryEnabledrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaHasSelfThreadCountrelayprovider%22%3Afalse%2C%22__relay_internal__pv__IsTagIndicatorEnabledrelayprovider%22%3Atrue%2C%22__relay_internal__pv__BarcelonaHasDeepDiverelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaHasSpoilerStylingInforelayprovider%22%3Atrue%2C%22__relay_internal__pv__BarcelonaOptionalCookiesEnabledrelayprovider%22%3Atrue%2C%22__relay_internal__pv__BarcelonaQuotedPostUFIEnabledrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaHasTopicTagsrelayprovider%22%3Atrue%2C%22__relay_internal__pv__BarcelonaIsCrawlerrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaHasDisplayNamesrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaCanSeeSponsoredContentrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaShouldShowFediverseM075Featuresrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaImplicitTrendsGKrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaIsInternalUserrelayprovider%22%3Afalse%2C%22__relay_internal__pv__BarcelonaInlineComposerEnabledrelayprovider%22%3Afalse%7D&server_timestamps=true&doc_id=9854323351334248",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});

@@ -2,6 +2,8 @@
 
 import json
 from typing import Dict, Any, Optional, List
+from pathlib import Path
+from datetime import datetime
 from ..api import Endpoints, GraphQLClient
 from ..config import ConfigManager
 
@@ -22,6 +24,14 @@ class FollowingScraper:
         self.max_count = self.config['scraping']['following']['max_count']
         self.default_count = self.config['scraping']['following']['default_count']
         self.pagination_delay = self.config['scraping']['following']['pagination_delay']
+        self.save_responses = self.config['scraping']['following'].get('save_responses', False)
+        self.response_dir = self.config['scraping']['following'].get('response_dir', 'api_responses/following')
+        
+        # Create response directory if saving is enabled
+        if self.save_responses:
+            self.response_path = Path(self.response_dir) / username
+            self.response_path.mkdir(parents=True, exist_ok=True)
+            print(f"[DEBUG] Response saving enabled. Directory: {self.response_path}")
         
     def verify_login_with_graphql(self) -> bool:
         """Verify we're still logged in using GraphQL test"""
@@ -67,6 +77,84 @@ class FollowingScraper:
         except Exception as e:
             print(f"✗ Error verifying login: {e}")
             return False
+    
+    def save_response(self, data: Dict[str, Any], count: int, max_id: Optional[str] = None):
+        """Save API response to file"""
+        if not self.save_responses or not data:
+            return
+        
+        try:
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Include pagination info in filename
+            if max_id:
+                filename = f"following_{timestamp}_count{count}_maxid{max_id[:10]}.json"
+            else:
+                filename = f"following_{timestamp}_count{count}_initial.json"
+            
+            filepath = self.response_path / filename
+            
+            # Add metadata to the saved data
+            save_data = {
+                "metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "username": self.username,
+                    "count_requested": count,
+                    "max_id": max_id,
+                    "users_returned": len(data.get('users', [])),
+                    "has_next": data.get('next_max_id') is not None,
+                    "big_list": data.get('big_list', False)
+                },
+                "response": data
+            }
+            
+            # Save to file
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(save_data, f, indent=2, ensure_ascii=False)
+            
+            print(f"[DEBUG] Response saved to: {filepath}")
+            print(f"[DEBUG] File size: {filepath.stat().st_size} bytes")
+            
+        except Exception as e:
+            print(f"[DEBUG] Error saving response: {e}")
+    
+    def save_error_response(self, response: Dict[str, Any], count: int, max_id: Optional[str], error_type: str):
+        """Save error response to file for debugging"""
+        if not self.save_responses:
+            return
+        
+        try:
+            # Generate filename with error type
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"error_{error_type}_{timestamp}_count{count}.json"
+            
+            # Create errors subdirectory
+            error_path = self.response_path / "errors"
+            error_path.mkdir(exist_ok=True)
+            filepath = error_path / filename
+            
+            # Add metadata to the saved data
+            save_data = {
+                "metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "username": self.username,
+                    "count_requested": count,
+                    "max_id": max_id,
+                    "error_type": error_type,
+                    "http_status": response.get('status')
+                },
+                "response": response
+            }
+            
+            # Save to file
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(save_data, f, indent=2, ensure_ascii=False)
+            
+            print(f"[DEBUG] Error response saved to: {filepath}")
+            
+        except Exception as e:
+            print(f"[DEBUG] Error saving error response: {e}")
     
     def get_following(self, count: Optional[int] = None, max_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get following list"""
@@ -161,13 +249,83 @@ class FollowingScraper:
                 }})()
             """)
             
-            print(f"\nResponse Status: {response['status']}")
+            print(f"\n[DEBUG] === FOLLOWING API RESPONSE ===")
+            print(f"[DEBUG] HTTP Status: {response['status']}")
+            print(f"[DEBUG] Response has 'data': {'data' in response}")
             
             if response['status'] == 200:
-                print("✓ Request successful!")
-                return response['data']
+                print("✓ Request successful (HTTP 200)")
+                data = response['data']
+                
+                # Enhanced debug logging
+                print(f"\n[DEBUG] Response structure analysis:")
+                print(f"[DEBUG]   - Type: {type(data)}")
+                print(f"[DEBUG]   - Keys: {list(data.keys())}")
+                print(f"[DEBUG]   - Has 'users' key: {'users' in data}")
+                
+                if 'users' in data:
+                    users = data['users']
+                    print(f"[DEBUG]   - Users type: {type(users)}")
+                    print(f"[DEBUG]   - Users count: {len(users)}")
+                    if len(users) > 0:
+                        print(f"[DEBUG]   - First user keys: {list(users[0].keys())[:5]}...")
+                        print(f"[DEBUG]   - First username: @{users[0].get('username', 'N/A')}")
+                else:
+                    print(f"[DEBUG]   - ⚠ NO 'users' KEY IN RESPONSE")
+                
+                print(f"[DEBUG]   - Has 'big_list': {'big_list' in data}")
+                print(f"[DEBUG]   - big_list value: {data.get('big_list', 'N/A')}")
+                print(f"[DEBUG]   - Has 'next_max_id': {'next_max_id' in data}")
+                print(f"[DEBUG]   - next_max_id value: {data.get('next_max_id', 'N/A')}")
+                print(f"[DEBUG]   - Status field: {data.get('status', 'not provided')}")
+                print(f"[DEBUG]   - Count field: {data.get('count', 'not provided')}")
+                print(f"[DEBUG]   - Page size: {data.get('page_size', 'not provided')}")
+                
+                # Check for unusual conditions
+                if 'users' in data and len(data['users']) == 0:
+                    print("\n[DEBUG] ⚠ EMPTY USERS LIST RETURNED")
+                    print(f"[DEBUG] This could mean:")
+                    print(f"[DEBUG]   1. End of following list reached")
+                    print(f"[DEBUG]   2. Rate limiting in effect")
+                    print(f"[DEBUG]   3. Pagination issue")
+                    print(f"[DEBUG] Full response keys: {list(data.keys())}")
+                    print(f"[DEBUG] Response sample (first 200 chars): {str(data)[:200]}")
+                
+                # Check for rate limiting indicators
+                if data.get('status') == 'fail':
+                    print(f"\n[DEBUG] ⚠ API returned 'fail' status")
+                    print(f"[DEBUG] Message: {data.get('message', 'No message')}")
+                
+                # Save response if enabled
+                if self.save_responses:
+                    print(f"\n[DEBUG] Saving response (save_responses={self.save_responses})")
+                    self.save_response(data, count, max_id)
+                
+                return data
+            elif response['status'] == 429:
+                print(f"✗ RATE LIMITED (HTTP 429)")
+                print(f"[DEBUG] Too many requests - need to wait")
+                if 'data' in response:
+                    print(f"[DEBUG] Rate limit response: {response.get('data', {})}")
+                    # Save error response if enabled
+                    if self.save_responses and response.get('data'):
+                        self.save_error_response(response, count, max_id, "rate_limited")
+                return None
+            elif response['status'] == 401:
+                print(f"✗ UNAUTHORIZED (HTTP 401)")
+                print(f"[DEBUG] Session may have expired")
+                # Save error response if enabled
+                if self.save_responses and response.get('data'):
+                    self.save_error_response(response, count, max_id, "unauthorized")
+                return None
             else:
                 print(f"✗ Request failed with status: {response['status']}")
+                if 'data' in response:
+                    print(f"[DEBUG] Error response: {response.get('data', {})}")
+                    print(f"[DEBUG] Error sample (first 300 chars): {str(response.get('data', ''))[:300]}")
+                    # Save error response if enabled
+                    if self.save_responses:
+                        self.save_error_response(response, count, max_id, f"error_{response['status']}")
                 return None
                 
         except Exception as e:

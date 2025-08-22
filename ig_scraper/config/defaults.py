@@ -6,7 +6,9 @@ DEFAULT_CONFIG = {
             "max_count": 200,           # Maximum users per request (Instagram limit)
             "default_count": 12,        # Default count if not specified
             "pagination_delay": 3000,   # Delay between pagination requests (ms)
-            "verify_login": True        # Verify login before scraping
+            "verify_login": True,       # Verify login before scraping
+            "save_responses": False,    # Save API responses to file
+            "response_dir": "api_responses/following"  # Directory for saved responses
         },
         "followers": {
             "max_count": 200,
@@ -40,7 +42,9 @@ DEFAULT_CONFIG = {
             "batch_size": 50,           # Users to unfollow per batch
             "pause_between_batches": 30,  # Seconds to pause between batches
             "stop_on_error": False,     # Stop if unfollow fails
-            "auto_confirm": False       # Skip confirmation prompts
+            "auto_confirm": False,      # Skip confirmation prompts
+            "aggressive_mode": False,   # Continue even when max_id is null
+            "aggressive_retries": 3     # How many times to retry when max_id is null
         },
         "like": {
             "daily_limit": 500,

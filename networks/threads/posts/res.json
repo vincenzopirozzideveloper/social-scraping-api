@@ -1,0 +1,305 @@
+{
+    "data": {
+        "data": {
+            "edges": [
+                {
+                    "node": {
+                        "thread_header_context": null,
+                        "thread_items": [
+                            {
+                                "post": {
+                                    "pk": "3704791668103569429",
+                                    "user": {
+                                        "friendship_status": null,
+                                        "id": "64361620444",
+                                        "pk": "64361620444",
+                                        "username": "vincenzopirozzi.developer",
+                                        "text_app_last_visited_time": 1755879465,
+                                        "profile_pic_url": "https://scontent-fco2-1.cdninstagram.com/v/t51.2885-19/534272806_17918530839148445_6802697393353256005_n.jpg?stp=dst-jpg_s150x150_tt6\u0026efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDI0LmMyIn0\u0026_nc_ht=scontent-fco2-1.cdninstagram.com\u0026_nc_cat=105\u0026_nc_oc=Q6cZ2QEx25zdGBcl7dWVYgxPnh1abcADvdxVUdOtyXmH1agaQDRf7BMq3fO4kgc1tfYB2Gg\u0026_nc_ohc=lS5rXjHk1QcQ7kNvwGYbUzu\u0026_nc_gid=k-F8dFtOh2hLpuiLFZ_ZkQ\u0026edm=ALvRx_oBAAAA\u0026ccb=7-5\u0026oh=00_AfUl_6K-jrIBdGQGbK1xFPhENAMotJWa5JSMgNITh-s5TQ\u0026oe=68AE5483\u0026_nc_sid=ecb15b",
+                                        "full_name": "Vincenzo Pirozzi",
+                                        "transparency_label": null,
+                                        "transparency_product": null,
+                                        "transparency_product_enabled": false,
+                                        "is_verified": false,
+                                        "text_post_app_is_private": false,
+                                        "has_onboarded_to_text_post_app": true
+                                    },
+                                    "text_post_app_info": {
+                                        "is_post_unavailable": false,
+                                        "pinned_post_info": {
+                                            "is_pinned_to_profile": false,
+                                            "is_pinned_to_parent_post": false
+                                        },
+                                        "share_info": {
+                                            "reposted_post": null,
+                                            "is_reposted_by_viewer": true,
+                                            "can_quote_post": true,
+                                            "quoted_attachment_author_attribution_allowed": true,
+                                            "quoted_attachment_post_unavailable": false,
+                                            "quoted_attachment_post": null,
+                                            "quoted_post": null
+                                        },
+                                        "reply_control": "everyone",
+                                        "tag_header": {
+                                            "display_name": "artificial intelligence",
+                                            "id": "18397946374032252"
+                                        },
+                                        "fediverse_info": null,
+                                        "can_private_reply": false,
+                                        "can_reply": true,
+                                        "show_header_follow": false,
+                                        "self_thread_info": null,
+                                        "is_spoiler_media": false,
+                                        "is_markup": false,
+                                        "special_effects_enabled_str": "",
+                                        "direct_reply_count": 4,
+                                        "repost_count": 1,
+                                        "quote_count": 0,
+                                        "reshare_count": null,
+                                        "text_fragments": {
+                                            "fragments": [
+                                                {
+                                                    "fragment_type": "plaintext",
+                                                    "link_fragment": null,
+                                                    "mention_fragment": null,
+                                                    "plaintext": "If AI can now create art, music, even fake identities… what part of being human do you think is truly impossible to replicate?",
+                                                    "linkified_web_url": null,
+                                                    "styling_info": null
+                                                }
+                                            ]
+                                        },
+                                        "custom_feed_preview_info": null,
+                                        "link_preview_attachment": null,
+                                        "linked_inline_media": null,
+                                        "snippet_attachment_info": null,
+                                        "reply_to_author": null,
+                                        "private_reply_partner": {
+                                            "username": "vincenzopirozzi.developer",
+                                            "id": "64361620444"
+                                        },
+                                        "self_thread_count": 0,
+                                        "root_post_author": null,
+                                        "is_liked_by_root_author": false,
+                                        "related_trends_info": null,
+                                        "is_reply": false,
+                                        "post_unavailable_reason": null,
+                                        "hush_info": null
+                                    },
+                                    "id": "3704791668103569429_64361620444",
+                                    "is_fb_only": null,
+                                    "is_internal_only": null,
+                                    "logging_info_token": null,
+                                    "is_paid_partnership": null,
+                                    "audio": null,
+                                    "caption": {
+                                        "text": "If AI can now create art, music, even fake identities… what part of being human do you think is truly impossible to replicate?",
+                                        "has_translation": null,
+                                        "pk": "18119686942491700"
+                                    },
+                                    "caption_is_edited": false,
+                                    "transcription_data": null,
+                                    "carousel_media": null,
+                                    "code": "DNqEGSwI-AV",
+                                    "image_versions2": {
+                                        "candidates": []
+                                    },
+                                    "original_height": 612,
+                                    "original_width": 612,
+                                    "accessibility_caption": null,
+                                    "usertags": null,
+                                    "video_versions": null,
+                                    "has_audio": null,
+                                    "media_type": 19,
+                                    "caption_add_on": null,
+                                    "has_liked": false,
+                                    "like_count": 1,
+                                    "media_overlay_info": null,
+                                    "sharing_friction_info": {
+                                        "should_have_sharing_friction": false,
+                                        "sharing_friction_payload": null
+                                    },
+                                    "giphy_media_info": null,
+                                    "metaPlace": null,
+                                    "meta_place": null,
+                                    "gen_ai_detection_method": {
+                                        "detection_method": "NONE"
+                                    },
+                                    "taken_at": 1755865604,
+                                    "organic_tracking_token": "eyJ2ZXJzaW9uIjo1LCJwYXlsb2FkIjp7ImlzX2FuYWx5dGljc190cmFja2VkIjp0cnVlLCJ1dWlkIjoiNTdjNTE3OTQ5MmJmNDEzOWExMTZjMTAxZWM0MDA0NTEzNzA0NzkxNjY4MTAzNTY5NDI5Iiwic2VydmVyX3Rva2VuIjoiMTc1NTg3OTU3NjM0OHwzNzA0NzkxNjY4MTAzNTY5NDI5fDY0MzYxNjIwNDQ0fGQzODVhYjBkMTUyZmY1ZDQ0NWZmMDZkNjBlMTFhYWQxM2QzNDlmM2NmZDJjZTVjNzU2MjdkZmM2NzVhYjMzYmMifSwic2lnbmF0dXJlIjoiIn0=",
+                                    "like_and_view_counts_disabled": false
+                                }
+                            }
+                        ],
+                        "thread_type": "thread",
+                        "header": null,
+                        "id": "3704791668103569429",
+                        "__typename": "XDTThread"
+                    },
+                    "cursor": ""
+                },
+                {
+                    "node": {
+                        "thread_header_context": null,
+                        "thread_items": [
+                            {
+                                "post": {
+                                    "pk": "3704810039013516035",
+                                    "user": {
+                                        "friendship_status": {
+                                            "muting": false,
+                                            "followed_by": false,
+                                            "following": false,
+                                            "outgoing_request": null
+                                        },
+                                        "id": "74798293990",
+                                        "pk": "74798293990",
+                                        "username": "mikedgtl",
+                                        "text_app_last_visited_time": 0,
+                                        "profile_pic_url": "https://scontent-fco2-1.cdninstagram.com/v/t51.2885-19/530890848_17860811832463314_803545591941571283_n.jpg?stp=dst-jpg_s150x150_tt6\u0026efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby44MTYuYzIifQ\u0026_nc_ht=scontent-fco2-1.cdninstagram.com\u0026_nc_cat=106\u0026_nc_oc=Q6cZ2QEx25zdGBcl7dWVYgxPnh1abcADvdxVUdOtyXmH1agaQDRf7BMq3fO4kgc1tfYB2Gg\u0026_nc_ohc=0jS_S_sJ2UcQ7kNvwFYsp5x\u0026_nc_gid=k-F8dFtOh2hLpuiLFZ_ZkQ\u0026edm=ALvRx_oBAAAA\u0026ccb=7-5\u0026oh=00_AfXOIHd1SKQRVeYIQlF1Rxp_XPDmBR2sIb-Z3B00sRmtng\u0026oe=68AE7E24\u0026_nc_sid=ecb15b",
+                                        "full_name": "Michael Douglas | AI Brand Builder",
+                                        "transparency_label": null,
+                                        "transparency_product": null,
+                                        "transparency_product_enabled": false,
+                                        "is_verified": true,
+                                        "text_post_app_is_private": false,
+                                        "has_onboarded_to_text_post_app": true
+                                    },
+                                    "text_post_app_info": {
+                                        "is_post_unavailable": false,
+                                        "pinned_post_info": {
+                                            "is_pinned_to_profile": false,
+                                            "is_pinned_to_parent_post": false
+                                        },
+                                        "share_info": {
+                                            "reposted_post": null,
+                                            "is_reposted_by_viewer": false,
+                                            "can_quote_post": true,
+                                            "quoted_attachment_author_attribution_allowed": true,
+                                            "quoted_attachment_post_unavailable": false,
+                                            "quoted_attachment_post": null,
+                                            "quoted_post": null
+                                        },
+                                        "reply_control": "everyone",
+                                        "tag_header": null,
+                                        "fediverse_info": null,
+                                        "can_private_reply": false,
+                                        "can_reply": true,
+                                        "show_header_follow": false,
+                                        "self_thread_info": null,
+                                        "is_spoiler_media": false,
+                                        "is_markup": false,
+                                        "special_effects_enabled_str": "",
+                                        "direct_reply_count": 2,
+                                        "repost_count": 0,
+                                        "quote_count": 0,
+                                        "reshare_count": null,
+                                        "text_fragments": {
+                                            "fragments": [
+                                                {
+                                                    "fragment_type": "plaintext",
+                                                    "link_fragment": null,
+                                                    "mention_fragment": null,
+                                                    "plaintext": "AI can mimic everything except lived struggle. Pain, failure, and the messy process of becoming. That can’t be faked.",
+                                                    "linkified_web_url": null,
+                                                    "styling_info": null
+                                                }
+                                            ]
+                                        },
+                                        "custom_feed_preview_info": null,
+                                        "link_preview_attachment": null,
+                                        "linked_inline_media": null,
+                                        "snippet_attachment_info": null,
+                                        "reply_to_author": {
+                                            "username": "vincenzopirozzi.developer",
+                                            "id": "64361620444"
+                                        },
+                                        "private_reply_partner": {
+                                            "username": "mikedgtl",
+                                            "id": "74798293990"
+                                        },
+                                        "self_thread_count": 0,
+                                        "root_post_author": {
+                                            "pk": "64361620444",
+                                            "profile_pic_url": "https://scontent-fco2-1.cdninstagram.com/v/t51.2885-19/534272806_17918530839148445_6802697393353256005_n.jpg?stp=dst-jpg_s150x150_tt6\u0026efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDI0LmMyIn0\u0026_nc_ht=scontent-fco2-1.cdninstagram.com\u0026_nc_cat=105\u0026_nc_oc=Q6cZ2QEx25zdGBcl7dWVYgxPnh1abcADvdxVUdOtyXmH1agaQDRf7BMq3fO4kgc1tfYB2Gg\u0026_nc_ohc=lS5rXjHk1QcQ7kNvwGYbUzu\u0026_nc_gid=k-F8dFtOh2hLpuiLFZ_ZkQ\u0026edm=ALvRx_oBAAAA\u0026ccb=7-5\u0026oh=00_AfUl_6K-jrIBdGQGbK1xFPhENAMotJWa5JSMgNITh-s5TQ\u0026oe=68AE5483\u0026_nc_sid=ecb15b",
+                                            "username": "vincenzopirozzi.developer",
+                                            "id": "64361620444"
+                                        },
+                                        "is_liked_by_root_author": false,
+                                        "related_trends_info": null,
+                                        "is_reply": true,
+                                        "post_unavailable_reason": null,
+                                        "hush_info": {
+                                            "is_post_covered": false
+                                        }
+                                    },
+                                    "id": "3704810039013516035_74798293990",
+                                    "is_fb_only": null,
+                                    "is_internal_only": null,
+                                    "logging_info_token": null,
+                                    "is_paid_partnership": null,
+                                    "audio": null,
+                                    "caption": {
+                                        "text": "AI can mimic everything except lived struggle. Pain, failure, and the messy process of becoming. That can’t be faked.",
+                                        "has_translation": null,
+                                        "pk": "18087646918805585"
+                                    },
+                                    "caption_is_edited": false,
+                                    "transcription_data": null,
+                                    "carousel_media": null,
+                                    "code": "DNqIRn_s6MD",
+                                    "image_versions2": {
+                                        "candidates": []
+                                    },
+                                    "original_height": 612,
+                                    "original_width": 612,
+                                    "accessibility_caption": null,
+                                    "usertags": null,
+                                    "video_versions": null,
+                                    "has_audio": null,
+                                    "media_type": 19,
+                                    "caption_add_on": null,
+                                    "has_liked": false,
+                                    "like_count": 0,
+                                    "media_overlay_info": null,
+                                    "sharing_friction_info": {
+                                        "should_have_sharing_friction": false,
+                                        "sharing_friction_payload": null
+                                    },
+                                    "giphy_media_info": null,
+                                    "metaPlace": null,
+                                    "meta_place": null,
+                                    "gen_ai_detection_method": {
+                                        "detection_method": "NONE"
+                                    },
+                                    "taken_at": 1755867794,
+                                    "organic_tracking_token": "eyJ2ZXJzaW9uIjo1LCJwYXlsb2FkIjp7ImlzX2FuYWx5dGljc190cmFja2VkIjp0cnVlLCJ1dWlkIjoiNTdjNTE3OTQ5MmJmNDEzOWExMTZjMTAxZWM0MDA0NTEzNzA0ODEwMDM5MDEzNTE2MDM1Iiwic2VydmVyX3Rva2VuIjoiMTc1NTg3OTU3NjM3MnwzNzA0ODEwMDM5MDEzNTE2MDM1fDY0MzYxNjIwNDQ0fDgwMDlhNjNjN2ZiODdlMmU0OGQwYmRjOGQwYjUyMGE2ZDY0NDhmN2Y4NjlmNDVkYWE3OWQ1MGY2NzQxODQzZWYifSwic2lnbmF0dXJlIjoiIn0=",
+                                    "like_and_view_counts_disabled": false
+                                }
+                            }
+                        ],
+                        "thread_type": "thread",
+                        "header": null,
+                        "id": "3704810039013516035",
+                        "__typename": "XDTThread"
+                    },
+                    "cursor": ""
+                }
+            ],
+            "page_info": {
+                "has_next_page": true,
+                "has_previous_page": false,
+                "end_cursor": "GBxkb3dud2FyZF9tb3JlX3RocmVhZHNfaGVhZGVyNgAaNqSa29TVgbfqZoaMnfu_xpDqZqqAn4KWmYjqZhbkx6CpmmYVAAA=",
+                "start_cursor": null
+            },
+            "show_unavailable_replies_disclaimer": false
+        }
+    },
+    "extensions": {
+        "is_final": true,
+        "server_metadata": {
+            "request_start_time_ms": 1755879576050,
+            "time_at_flush_ms": 1755879576462
+        }
+    },
+    "status": "ok"
+}

@@ -293,202 +293,205 @@ def click_post_login_button(page):
         print(f'Error clicking button: {e}')
         return False
 
-def first_automation(session_manager):
+def first_automation(session_manager, playwright):
     """First automation: Login with saved session and make GraphQL request"""
+    from ig_scraper.browser import BrowserManager
+    from ig_scraper.browser.manager import ProfileLockError
+    
     try:
         # Select profile
         username = select_profile(session_manager)
         if not username:
             return
         
-        from playwright.sync_api import sync_playwright
+        print('Getting browser page...')
+        # Use BrowserManager to get a page
+        try:
+            page = BrowserManager.get_new_page(username, session_manager, playwright)
+        except ProfileLockError as e:
+            print(f'\n❌ {e}')
+            print(f'Profile @{username} is already open in another window.')
+            print('Please close the other window or choose a different profile.')
+            return
         
-        with sync_playwright() as p:
-            print('Starting browser with saved session...')
-            browser = p.chromium.launch(headless=False)
+        print('Loading Instagram...')
+        page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+        page.wait_for_timeout(3000)
+        
+        # Check if logged in
+        if not (page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]')):
+            print("Session expired. Please login again (option 1)")
+            BrowserManager.close_page(username, page)
+            return
+        
+        print('✓ Logged in successfully with saved session!')
+        
+        # Get user ID from saved session
+        cookies = page.context.cookies()
+        user_id = None
+        for cookie in cookies:
+            if cookie['name'] == 'ds_user_id':
+                user_id = cookie['value']
+                break
+        
+        if not user_id:
+            print("Could not find user ID in cookies")
+            BrowserManager.close_page(username, page)
+            return
+        
+        print(f'User ID from cookies: {user_id}')
+        
+        # Load saved GraphQL metadata if available
+        saved_info = session_manager.load_session_info(username)
+        graphql_metadata = None
+        if saved_info and 'graphql' in saved_info:
+            graphql_metadata = saved_info['graphql']
+            print(f"Loaded saved GraphQL metadata with {len(graphql_metadata.get('doc_ids', {}))} endpoints")
+        
+        # Create GraphQL client and make request
+        print('\n' + '='*50)
+        print('EXECUTING GRAPHQL REQUEST')
+        print('='*50)
+        
+        graphql_client = GraphQLClient(page, graphql_metadata)
+        response_data = graphql_client.get_profile_info(user_id)
+        
+        if response_data:
+            username_from_api = graphql_client.extract_username(response_data)
             
-            # Create context with saved session
-            context = session_manager.create_browser_context(browser, username)
-            page = context.new_page()
-            
-            print('Loading Instagram...')
-            page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
-            page.wait_for_timeout(3000)
-            
-            # Check if logged in
-            if not (page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]')):
-                print("Session expired. Please login again (option 1)")
-                context.close()
-                browser.close()
-                return
-            
-            print('✓ Logged in successfully with saved session!')
-            
-            # Get user ID from saved session
-            cookies = context.cookies()
-            user_id = None
-            for cookie in cookies:
-                if cookie['name'] == 'ds_user_id':
-                    user_id = cookie['value']
-                    break
-            
-            if not user_id:
-                print("Could not find user ID in cookies")
-                context.close()
-                browser.close()
-                return
-            
-            print(f'User ID from cookies: {user_id}')
-            
-            # Load saved GraphQL metadata if available
-            saved_info = session_manager.load_session_info(username)
-            graphql_metadata = None
-            if saved_info and 'graphql' in saved_info:
-                graphql_metadata = saved_info['graphql']
-                print(f"Loaded saved GraphQL metadata with {len(graphql_metadata.get('doc_ids', {}))} endpoints")
-            
-            # Create GraphQL client and make request
             print('\n' + '='*50)
-            print('EXECUTING GRAPHQL REQUEST')
+            print('RESULT')
             print('='*50)
             
-            graphql_client = GraphQLClient(page, graphql_metadata)
-            response_data = graphql_client.get_profile_info(user_id)
-            
-            if response_data:
-                username_from_api = graphql_client.extract_username(response_data)
+            if username_from_api:
+                print(f'✓ USERNAME RETRIEVED: {username_from_api}')
                 
-                print('\n' + '='*50)
-                print('RESULT')
-                print('='*50)
-                
-                if username_from_api:
-                    print(f'✓ USERNAME RETRIEVED: {username_from_api}')
-                    
-                    # Show more profile info if available
-                    try:
-                        user_data = response_data['data']['user']
-                        print(f'  Full Name: {user_data.get("full_name", "N/A")}')
-                        print(f'  Bio: {user_data.get("biography", "N/A")[:100]}...')
-                        print(f'  Followers: {user_data.get("follower_count", "N/A")}')
-                        print(f'  Following: {user_data.get("following_count", "N/A")}')
-                        print(f'  Posts: {user_data.get("media_count", "N/A")}')
-                        print(f'  Verified: {user_data.get("is_verified", False)}')
-                    except:
-                        pass
-                else:
-                    print('✗ Could not extract username from response')
-                
-                print('='*50)
+                # Show more profile info if available
+                try:
+                    user_data = response_data['data']['user']
+                    print(f'  Full Name: {user_data.get("full_name", "N/A")}')
+                    print(f'  Bio: {user_data.get("biography", "N/A")[:100]}...')
+                    print(f'  Followers: {user_data.get("follower_count", "N/A")}')
+                    print(f'  Following: {user_data.get("following_count", "N/A")}')
+                    print(f'  Posts: {user_data.get("media_count", "N/A")}')
+                    print(f'  Verified: {user_data.get("is_verified", False)}')
+                except:
+                    pass
             else:
-                print('✗ GraphQL request failed')
+                print('✗ Could not extract username from response')
             
-            print('\nWaiting 10 seconds before closing...')
-            page.wait_for_timeout(10000)
-            
-            context.close()
-            browser.close()
-            print('Browser closed')
+            print('='*50)
+        else:
+            print('✗ GraphQL request failed')
+        
+        print('\nWaiting 10 seconds before closing tab...')
+        page.wait_for_timeout(10000)
+        
+        BrowserManager.close_page(username, page)
+        print('Tab closed')
             
     except Exception as e:
         print(f'Error in first_automation: {e}')
 
-def scrape_following(session_manager):
+def scrape_following(session_manager, playwright):
     """Scrape following list"""
+    from ig_scraper.browser import BrowserManager
+    from ig_scraper.browser.manager import ProfileLockError
+    
     try:
         # Select profile
         username = select_profile(session_manager)
         if not username:
             return
         
-        from playwright.sync_api import sync_playwright
+        print('Getting browser page...')
+        # Use BrowserManager to get a page
+        try:
+            page = BrowserManager.get_new_page(username, session_manager, playwright)
+        except ProfileLockError as e:
+            print(f'\n❌ {e}')
+            print(f'Profile @{username} is already open in another window.')
+            print('Please close the other window or choose a different profile.')
+            return
         
-        with sync_playwright() as p:
-            print('Starting browser with saved session...')
-            browser = p.chromium.launch(headless=False)
+        print('Loading Instagram...')
+        page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+        page.wait_for_timeout(3000)
+        
+        # Create following scraper
+        scraper = FollowingScraper(page, session_manager, username)
+        
+        # Verify login with GraphQL test
+        if not scraper.verify_login_with_graphql():
+            print("\n✗ Login verification failed. Please login again (option 1)")
+            BrowserManager.close_page(username, page)
+            return
+        
+        print("\n✓ Login verified! Proceeding with following scrape...")
+        page.wait_for_timeout(2000)
+        
+        # Get following list
+        following_data = scraper.get_following(count=12)
+        
+        if following_data:
+            # Display the results
+            scraper.display_following(following_data)
             
-            # Create context with saved session
-            context = session_manager.create_browser_context(browser, username)
-            page = context.new_page()
-            
-            print('Loading Instagram...')
-            page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
-            page.wait_for_timeout(3000)
-            
-            # Create following scraper
-            scraper = FollowingScraper(page, session_manager, username)
-            
-            # Verify login with GraphQL test
-            if not scraper.verify_login_with_graphql():
-                print("\n✗ Login verification failed. Please login again (option 1)")
-                context.close()
-                browser.close()
-                return
-            
-            print("\n✓ Login verified! Proceeding with following scrape...")
-            page.wait_for_timeout(2000)
-            
-            # Get following list
-            following_data = scraper.get_following(count=12)
-            
-            if following_data:
-                # Display the results
-                scraper.display_following(following_data)
-                
-                # Check if there are more pages
-                if following_data.get('next_max_id'):
-                    print("\n" + "="*50)
-                    choice = input("Load more following? (y/n): ")
-                    if choice.lower() == 'y':
-                        # Get next page
-                        print("\nFetching next page...")
-                        next_data = scraper.get_following(count=12, max_id=following_data['next_max_id'])
-                        if next_data:
-                            scraper.display_following(next_data)
-            else:
-                print("✗ Failed to get following list")
-            
-            print('\nWaiting 10 seconds before closing...')
-            page.wait_for_timeout(10000)
-            
-            context.close()
-            browser.close()
-            print('Browser closed')
+            # Check if there are more pages
+            if following_data.get('next_max_id'):
+                print("\n" + "="*50)
+                choice = input("Load more following? (y/n): ")
+                if choice.lower() == 'y':
+                    # Get next page
+                    print("\nFetching next page...")
+                    next_data = scraper.get_following(count=12, max_id=following_data['next_max_id'])
+                    if next_data:
+                        scraper.display_following(next_data)
+        else:
+            print("✗ Failed to get following list")
+        
+        print('\nWaiting 10 seconds before closing tab...')
+        page.wait_for_timeout(10000)
+        
+        BrowserManager.close_page(username, page)
+        print('Tab closed')
             
     except Exception as e:
         print(f'Error in scrape_following: {e}')
 
-def scrape_explore(session_manager):
+def scrape_explore(session_manager, playwright):
     """Scrape explore/search results"""
+    from ig_scraper.browser import BrowserManager
+    from ig_scraper.browser.manager import ProfileLockError
+    
     try:
         # Select profile
         username = select_profile(session_manager)
         if not username:
             return
         
-        from playwright.sync_api import sync_playwright
+        print('Getting browser page...')
+        # Use BrowserManager to get a page
+        try:
+            page = BrowserManager.get_new_page(username, session_manager, playwright)
+        except ProfileLockError as e:
+            print(f'\n❌ {e}')
+            print(f'Profile @{username} is already open in another window.')
+            print('Please close the other window or choose a different profile.')
+            return
         
-        with sync_playwright() as p:
-            print('Starting browser with saved session...')
-            browser = p.chromium.launch(headless=False)
+        print('Loading Instagram...')
+        page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+        page.wait_for_timeout(3000)
+        
+        # Create explore scraper
+        scraper = ExploreScraper(page, session_manager, username)
             
-            # Create context with saved session
-            context = session_manager.create_browser_context(browser, username)
-            page = context.new_page()
-            
-            print('Loading Instagram...')
-            page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
-            page.wait_for_timeout(3000)
-            
-            # Create explore scraper
-            scraper = ExploreScraper(page, session_manager, username)
-            
-            # Verify login with GraphQL test
-            if not scraper.verify_login_with_graphql():
-                print("\n✗ Login verification failed. Please login again (option 1)")
-                context.close()
-                browser.close()
-                return
+        # Verify login with GraphQL test
+        if not scraper.verify_login_with_graphql():
+            print("\n✗ Login verification failed. Please login again (option 1)")
+            BrowserManager.close_page(username, page)
+            return
             
             print("\n✓ Login verified! Ready for explore search...")
             
@@ -536,12 +539,11 @@ def scrape_explore(session_manager):
                     
                 print(f"\n✓ Total pages loaded: {page_count}")
             
-            print('\nWaiting 10 seconds before closing...')
+            print('\nWaiting 10 seconds before closing tab...')
             page.wait_for_timeout(10000)
             
-            context.close()
-            browser.close()
-            print('Browser closed')
+            BrowserManager.close_page(username, page)
+            print('Tab closed')
             
     except Exception as e:
         print(f'Error in scrape_explore: {e}')
@@ -584,8 +586,47 @@ def select_profile(session_manager) -> Optional[str]:
         print("Invalid input")
         return None
 
-def massive_unfollow(session_manager):
+def test_saved_session(username, session_manager, playwright):
+    """Test saved session - can run in background"""
+    from ig_scraper.browser import BrowserManager
+    from ig_scraper.browser.manager import ProfileLockError
+    
+    try:
+        print(f'[{username}] Getting browser page...')
+        page = BrowserManager.get_new_page(username, session_manager, playwright)
+        
+        print(f'[{username}] Using saved session, checking if still logged in...')
+        page.goto(Endpoints.BASE_URL)
+        page.wait_for_timeout(3000)
+        
+        # Check if we're logged in
+        if page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]'):
+            print(f'[{username}] ✓ Still logged in with saved session!')
+            print(f'[{username}] Session active! Keeping tab open for 30 seconds...')
+            page.wait_for_timeout(30000)
+            
+            # Close tab
+            BrowserManager.close_page(username, page)
+            print(f'[{username}] Tab closed')
+            return True
+        else:
+            print(f'[{username}] Session expired, need to login again')
+            BrowserManager.close_page(username, page)
+            return False
+    except ProfileLockError as e:
+        print(f'\n❌ {e}')
+        print(f'Profile @{username} is already open in another window.')
+        print('Please close the other window or choose a different profile.')
+        return False
+    except Exception as e:
+        print(f'[{username}] Error testing session: {e}')
+        return False
+
+def massive_unfollow(session_manager, playwright):
     """Massive unfollow system - unfollows all following"""
+    from ig_scraper.browser import BrowserManager
+    from ig_scraper.browser.manager import ProfileLockError
+    
     try:
         # Select profile
         username = select_profile(session_manager)
@@ -603,109 +644,210 @@ def massive_unfollow(session_manager):
         pause_between = unfollow_config['pause_between_batches']
         stop_on_error = unfollow_config['stop_on_error']
         auto_confirm = unfollow_config['auto_confirm']
+        aggressive_mode = unfollow_config.get('aggressive_mode', False)
+        aggressive_retries = unfollow_config.get('aggressive_retries', 3)
         
         # Get scraping settings
         following_config = config['scraping']['following']
         max_count = following_config['max_count']
         
-        from playwright.sync_api import sync_playwright
+        from ig_scraper.browser import BrowserManager
         
-        with sync_playwright() as p:
-            print('\n' + '='*50)
-            print('MASSIVE UNFOLLOW SYSTEM')
-            print('='*50)
-            print(f'Profile: @{username}')
-            print(f'Batch size: {batch_size}')
-            print(f'Safe list: {len(safe_list)} users')
-            print(f'Pause between batches: {pause_between}s')
-            print('='*50)
-            
-            if not auto_confirm:
-                confirm = input("\n⚠ WARNING: This will unfollow ALL users (except safe list). Continue? (yes/no): ")
-                if confirm.lower() != 'yes':
-                    print("✓ Operation cancelled")
-                    return
-            
-            print('\nStarting browser...')
-            browser = p.chromium.launch(headless=False)
-            
-            # Create context with saved session
-            context = session_manager.create_browser_context(browser, username)
-            page = context.new_page()
-            
-            print('Loading Instagram...')
-            page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
-            page.wait_for_timeout(3000)
-            
-            # Create following scraper
-            scraper = FollowingScraper(page, session_manager, username)
-            
-            # Verify login
-            if not scraper.verify_login_with_graphql():
-                print("\n✗ Login verification failed. Please login again (option 1)")
-                context.close()
-                browser.close()
+        print('\n' + '='*50)
+        print('MASSIVE UNFOLLOW SYSTEM')
+        print('='*50)
+        print(f'Profile: @{username}')
+        print(f'Batch size: {batch_size}')
+        print(f'Safe list: {len(safe_list)} users')
+        print(f'Pause between batches: {pause_between}s')
+        print(f'Aggressive mode: {aggressive_mode}')
+        if aggressive_mode:
+            print(f'  → Will retry {aggressive_retries} times when max_id is null')
+        print('='*50)
+        
+        if not auto_confirm:
+            confirm = input("\n⚠ WARNING: This will unfollow ALL users (except safe list). Continue? (yes/no): ")
+            if confirm.lower() != 'yes':
+                print("✓ Operation cancelled")
                 return
+        
+        print('\nGetting browser page...')
+        # Use BrowserManager to get a page (new tab if browser exists)
+        try:
+            page = BrowserManager.get_new_page(username, session_manager, playwright)
+        except ProfileLockError as e:
+            print(f'\n❌ {e}')
+            print(f'Profile @{username} is already open in another window.')
+            print('Please close the other window or choose a different profile.')
+            return
+        
+        print('Loading Instagram...')
+        page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+        page.wait_for_timeout(3000)
+        
+        # Create following scraper
+        scraper = FollowingScraper(page, session_manager, username)
+        
+        # Verify login
+        if not scraper.verify_login_with_graphql():
+            print("\n✗ Login verification failed. Please login again (option 1)")
+            BrowserManager.close_page(username, page)
+            return
+        
+        print("\n✓ Login verified! Starting massive unfollow...")
+        
+        # Statistics
+        total_unfollowed = 0
+        total_failed = 0
+        total_skipped = 0
+        batch_number = 0
+        
+        # Create action manager and unfollow action
+        action_manager = ActionManager(page, session_manager, username)
+        unfollow_action = UnfollowAction(page, session_manager, username)
+        
+        # Track pagination state
+        last_max_id = None
+        pagination_attempts = 0
+        max_pagination_attempts = 10  # Safety limit
+        consecutive_empty_responses = 0
+        max_empty_responses = 3
+        aggressive_null_retries = 0  # Track retries when max_id is null in aggressive mode
+        
+        # Main loop - continue until no more users to unfollow
+        page_number = 0
+        while True:
+            page_number += 1
+            print(f"\n{'='*50}")
+            print(f"PAGE #{page_number} - Loading up to {max_count} users")
+            print(f"{'='*50}")
+            print(f"[DEBUG] === START PAGE {page_number} ===")
+            print(f"[DEBUG] Pagination state: max_id={last_max_id}, attempts={pagination_attempts}")
+            print(f"[DEBUG] Consecutive empty responses: {consecutive_empty_responses}/{max_empty_responses}")
+            print(f"[DEBUG] Total unfollowed so far: {total_unfollowed}")
             
-            print("\n✓ Login verified! Starting massive unfollow...")
+            # Get following list (load max_count users at once)
+            print(f"\n[DEBUG] Loading page with count={max_count}, max_id={last_max_id}")
+            following_data = scraper.get_following(count=max_count, max_id=last_max_id)
             
-            # Statistics
-            total_unfollowed = 0
-            total_failed = 0
-            total_skipped = 0
-            batch_number = 0
+            # Detailed logging for debugging
+            print(f"\n[DEBUG] === API RESPONSE ANALYSIS ===")
+            print(f"[DEBUG] Response received: {following_data is not None}")
+            if following_data:
+                print(f"[DEBUG] Response type: {type(following_data)}")
+                print(f"[DEBUG] Response keys: {list(following_data.keys())}")
+                print(f"[DEBUG] Has 'users' key: {'users' in following_data}")
+                print(f"[DEBUG] Users count: {len(following_data.get('users', []))}")
+                print(f"[DEBUG] Total count field: {following_data.get('count', 'not provided')}")
+                print(f"[DEBUG] Has next_max_id: {'next_max_id' in following_data}")
+                print(f"[DEBUG] next_max_id value: {following_data.get('next_max_id', 'None')}")
+                print(f"[DEBUG] big_list field: {following_data.get('big_list', 'not provided')}")
+                if 'status' in following_data:
+                    print(f"[DEBUG] Response status: {following_data['status']}")
             
-            # Create action manager and unfollow action
-            action_manager = ActionManager(page, session_manager, username)
-            unfollow_action = UnfollowAction(page, session_manager, username)
+            if not following_data:
+                consecutive_empty_responses += 1
+                print(f"\n✗ No response from API (following_data is None)")
+                print(f"[DEBUG] Consecutive empty: {consecutive_empty_responses}/{max_empty_responses}")
+                print("[DEBUG] Possible reasons: network error, API limit, session expired")
+                
+                if consecutive_empty_responses >= max_empty_responses:
+                    print(f"[DEBUG] Max empty responses reached ({max_empty_responses}). Stopping.")
+                    break
+                
+                print(f"[DEBUG] Retrying... ({consecutive_empty_responses}/{max_empty_responses})")
+                page.wait_for_timeout(5000)  # Wait 5 seconds before retry
+                continue
+                
+            # Reset empty response counter on successful response
+            consecutive_empty_responses = 0
+                
+            if not following_data.get('users'):
+                print("\n[DEBUG] Response has no users or empty users list")
+                print(f"[DEBUG] Full response keys: {list(following_data.keys())}")
+                print(f"[DEBUG] Response status: {following_data.get('status', 'unknown')}")
+                
+                # Check if this is truly the end or an error
+                if following_data.get('status') == 'ok' and following_data.get('users') == []:
+                    print("✓ API returned empty users list with OK status - end of following list")
+                    break
+                else:
+                    print("⚠ Unexpected response structure - may be an error")
+                    print(f"[DEBUG] Full response (first 500 chars): {str(following_data)[:500]}")
+                    break
             
-            # Main loop - continue until no more users to unfollow
-            while True:
+            all_users = following_data['users']
+            total_count = following_data.get('count', len(all_users))
+            print(f"\n✓ Retrieved {len(all_users)} users from this page")
+            print(f"Total following count: ~{total_count}")
+            
+            # Filter out safe list users from ALL loaded users
+            filtered_users = []
+            skipped_in_page = 0
+            
+            print(f"\n[DEBUG] Filtering {len(all_users)} users (removing safe list)...")
+            for user in all_users:
+                username_to_check = user.get('username')
+                if username_to_check in safe_list:
+                    print(f"  → Skipping @{username_to_check} (in safe list)")
+                    total_skipped += 1
+                    skipped_in_page += 1
+                else:
+                    filtered_users.append(user)
+            
+            print(f"[DEBUG] Filter complete: {len(filtered_users)} to unfollow, {skipped_in_page} skipped")
+            
+            if not filtered_users:
+                print("\n[DEBUG] No users to unfollow on this page (all were in safe list or empty)")
+                
+                # In aggressive mode, even if no users, keep trying if we haven't reached limit
+                if aggressive_mode and len(all_users) == 0 and aggressive_null_retries < aggressive_retries:
+                    aggressive_null_retries += 1
+                    print(f"\n⚠ AGGRESSIVE MODE: Empty user list but will retry ({aggressive_null_retries}/{aggressive_retries})")
+                    print(f"[DEBUG] Instagram might be hiding users, retrying...")
+                    
+                    if pause_between > 0:
+                        print(f"⏸ Pausing {pause_between}s before aggressive retry...")
+                        page.wait_for_timeout(pause_between * 1000)
+                    continue
+                
+                if following_data.get('next_max_id'):
+                    print("[DEBUG] But there are more pages to check...")
+                    last_max_id = following_data.get('next_max_id')
+                    aggressive_null_retries = 0  # Reset counter for new page
+                    continue
+                else:
+                    print("✓ No more pages available - complete!")
+                    break
+            
+            # Process filtered users in mini-batches
+            print(f"\n{'='*50}")
+            print(f"Processing {len(filtered_users)} users in batches of {batch_size}")
+            print(f"{'='*50}")
+            
+            users_processed_in_page = 0
+            while filtered_users and users_processed_in_page < len(all_users):
                 batch_number += 1
+                
+                # Take next mini-batch
+                current_batch = filtered_users[:batch_size]
+                filtered_users = filtered_users[batch_size:]
+                
                 print(f"\n{'='*50}")
-                print(f"BATCH #{batch_number}")
+                print(f"BATCH #{batch_number} (Page {page_number})")
                 print(f"{'='*50}")
+                print(f"Processing {len(current_batch)} users")
+                print(f"Remaining in page: {len(filtered_users)}")
                 
-                # Get following list
-                print(f"Fetching up to {max_count} following...")
-                following_data = scraper.get_following(count=max_count)
-                
-                if not following_data or not following_data.get('users'):
-                    print("✓ No more users to unfollow!")
-                    break
-                
-                all_users = following_data['users']
-                total_count = following_data.get('count', len(all_users))
-                
-                # Filter out safe list users
-                users_to_unfollow = []
-                for user in all_users:
-                    username_to_check = user.get('username')
-                    if username_to_check in safe_list:
-                        print(f"  → Skipping @{username_to_check} (in safe list)")
-                        total_skipped += 1
-                    else:
-                        users_to_unfollow.append(user)
-                        if len(users_to_unfollow) >= batch_size:
-                            break
-                
-                if not users_to_unfollow:
-                    print("✓ No more users to unfollow (all remaining are in safe list)")
-                    break
-                
-                print(f"\nProcessing {len(users_to_unfollow)} users...")
-                print(f"Total following: ~{total_count}")
-                print(f"This batch: {len(users_to_unfollow)}")
-                
-                # Queue unfollow actions for this batch
-                for user in users_to_unfollow:
+                # Queue unfollow actions for this mini-batch
+                for user in current_batch:
                     action_manager.add_action(
                         unfollow_action,
-                        target_id=str(user.get('id')),
+                        target_id=str(user.get('id', user.get('pk'))),
                         target_username=user.get('username')
                     )
                 
-                # Execute the batch
+                # Execute the mini-batch
                 print(f"\nExecuting batch #{batch_number}...")
                 results = action_manager.execute_queue(delay_between=True, save_progress=True)
                 
@@ -714,51 +856,117 @@ def massive_unfollow(session_manager):
                 failed = len(results) - successful
                 total_unfollowed += successful
                 total_failed += failed
+                users_processed_in_page += len(current_batch)
                 
                 print(f"\nBatch #{batch_number} complete:")
                 print(f"  ✓ Unfollowed: {successful}")
                 print(f"  ✗ Failed: {failed}")
+                print(f"  Total unfollowed so far: {total_unfollowed}")
+                
+                if failed > 0:
+                    print(f"[DEBUG] Failed actions details:")
+                    for r in results:
+                        if not r.success:
+                            print(f"[DEBUG]   - @{r.target_username}: {r.error_message}")
                 
                 # Check if we should stop on error
                 if failed > 0 and stop_on_error:
-                    print("\n✗ Stopping due to errors (stop_on_error is enabled)")
+                    print(f"\n✗ Stopping due to errors (stop_on_error is enabled)")
+                    filtered_users = []  # Clear remaining to exit
                     break
                 
-                # Check if we've reached the end
-                if len(users_to_unfollow) < batch_size:
-                    print("\n✓ Reached the end of following list")
-                    break
-                
-                # Pause between batches
-                if pause_between > 0:
-                    print(f"\n⏸ Pausing for {pause_between} seconds between batches...")
-                    
-                    # Allow user to stop during pause
+                # Pause between mini-batches (but not after the last one)
+                if filtered_users and pause_between > 0:
+                    print(f"\n⏸ Pausing {pause_between}s between batches...")
                     print("Press Ctrl+C to stop...")
                     try:
                         page.wait_for_timeout(pause_between * 1000)
                     except KeyboardInterrupt:
                         print("\n⚠ Stopped by user")
+                        filtered_users = []  # Clear remaining to exit
                         break
             
-            # Final statistics
-            print(f"\n{'='*50}")
-            print(f"MASSIVE UNFOLLOW COMPLETE")
-            print(f"{'='*50}")
-            print(f"Total unfollowed: {total_unfollowed}")
-            print(f"Total failed: {total_failed}")
-            print(f"Total skipped (safe list): {total_skipped}")
-            print(f"Batches processed: {batch_number}")
-            print(f"Success rate: {(total_unfollowed / (total_unfollowed + total_failed) * 100) if (total_unfollowed + total_failed) > 0 else 0:.1f}%")
-            print(f"{'='*50}")
+            print(f"\n[DEBUG] Page {page_number} complete. Processed {users_processed_in_page} users")
             
-            print('\nWaiting 10 seconds before closing...')
-            page.wait_for_timeout(10000)
+            # After processing all mini-batches from this page, check pagination
+            print(f"\n[DEBUG] === PAGINATION DECISION ===")
+            print(f"[DEBUG] Page {page_number} fully processed")
+            print(f"[DEBUG] Has next_max_id: {following_data.get('next_max_id') is not None}")
+            print(f"[DEBUG] big_list flag: {following_data.get('big_list', False)}")
             
-            context.close()
-            browser.close()
-            print('Browser closed')
+            # Check if there are more pages
+            next_max_id = following_data.get('next_max_id')
+            if next_max_id:
+                print(f"[DEBUG] next_max_id exists: {next_max_id}")
+                if next_max_id != last_max_id:
+                    last_max_id = next_max_id
+                    pagination_attempts = 0
+                    aggressive_null_retries = 0  # Reset aggressive retries
+                    print(f"\n➡ Moving to next page with max_id: {next_max_id}")
+                    
+                    # Optional pause before loading next page
+                    if pause_between > 0:
+                        print(f"\n⏸ Pausing {pause_between}s before loading next page...")
+                        print("Press Ctrl+C to stop...")
+                        try:
+                            page.wait_for_timeout(pause_between * 1000)
+                        except KeyboardInterrupt:
+                            print("\n⚠ Stopped by user")
+                            break
+                    continue  # Load next page
+                else:
+                    print(f"[DEBUG] WARNING: next_max_id same as last ({last_max_id})")
+                    pagination_attempts += 1
+                    if pagination_attempts >= max_pagination_attempts:
+                        print(f"[DEBUG] Max pagination attempts reached ({max_pagination_attempts})")
+                        break
+            else:
+                # No next_max_id - Instagram might be limiting us
+                print(f"\n[DEBUG] No next_max_id returned")
+                
+                if aggressive_mode and aggressive_null_retries < aggressive_retries:
+                    aggressive_null_retries += 1
+                    print(f"\n⚠ AGGRESSIVE MODE: max_id is null but will retry ({aggressive_null_retries}/{aggressive_retries})")
+                    print(f"[DEBUG] Instagram might be limiting pagination, but we'll keep trying")
+                    
+                    # Keep the same last_max_id and try again
+                    # This forces re-requesting the same page to see if we get different results
+                    print(f"[DEBUG] Retrying with same max_id: {last_max_id}")
+                    
+                    if pause_between > 0:
+                        print(f"\n⏸ Pausing {pause_between}s before aggressive retry...")
+                        page.wait_for_timeout(pause_between * 1000)
+                    continue  # Try again
+                else:
+                    if aggressive_mode:
+                        print(f"\n✓ Max aggressive retries reached ({aggressive_retries})")
+                    else:
+                        print(f"\n✓ No more pages available (no next_max_id)")
+                    break
             
+            # Check big_list flag
+            if following_data.get('big_list') == False:
+                print(f"\n✓ Reached end of following list (big_list is False)")
+                break
+        
+        # Final statistics
+        print(f"\n{'='*50}")
+        print(f"MASSIVE UNFOLLOW COMPLETE")
+        print(f"{'='*50}")
+        print(f"Total unfollowed: {total_unfollowed}")
+        print(f"Total failed: {total_failed}")
+        print(f"Total skipped (safe list): {total_skipped}")
+        print(f"Batches processed: {batch_number}")
+        print(f"Success rate: {(total_unfollowed / (total_unfollowed + total_failed) * 100) if (total_unfollowed + total_failed) > 0 else 0:.1f}%")
+        print(f"{'='*50}")
+        
+        print('\nWaiting 10 seconds before closing tab...')
+        page.wait_for_timeout(10000)
+        
+        # Close only the page, not the entire browser
+        BrowserManager.close_page(username, page)
+        print('Tab closed (browser remains open for other operations)')
+        
     except KeyboardInterrupt:
         print("\n\n⚠ Operation interrupted by user")
         print(f"Unfollowed {total_unfollowed} users before stopping")
@@ -766,10 +974,30 @@ def massive_unfollow(session_manager):
         print(f'Error in massive_unfollow: {e}')
 
 def main():
+    from ig_scraper.browser import BrowserManager
+    from playwright.sync_api import sync_playwright
     session_manager = SessionManager()
     
+    # Start a single playwright instance for the entire session
+    playwright = sync_playwright().start()
+    
+    # Register cleanup on exit
+    import atexit
+    def cleanup():
+        BrowserManager.close_all()
+        playwright.stop()
+    atexit.register(cleanup)
+    
     while True:
-        choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Massive Unfollow (ALL)\n0: Exit\n> ')
+        # Show active browsers if any
+        active = BrowserManager.get_active_profiles()
+        if active:
+            print("\n📱 Active browsers:")
+            for profile in active:
+                print(f"  → @{profile['username']}: {profile['tabs']} tabs")
+        
+        
+        choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Massive Unfollow (ALL)\n8: Browser Status\n9: Close All Browsers\n0: Exit\n> ')
         if choice == '0':
             break
             
@@ -783,151 +1011,139 @@ def main():
                 else:
                     username = None  # Will be determined after login
                 
-                with sync_playwright() as p:
-                    print('Starting browser...')
-                    browser = p.chromium.launch(headless=False)
+                # Option 2: Use BrowserManager for saved sessions
+                if choice == '2':
+                    # Run in foreground
+                    test_saved_session(username, session_manager, playwright)
                     
-                    # Create context with storage state (if username is known)
-                    if username:
-                        context = session_manager.create_browser_context(browser, username)
-                    else:
-                        # Create clean context for new login
-                        context = browser.new_context(
-                            viewport={'width': 1920, 'height': 1080},
-                            locale='en-US',
-                            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                        )
+                    # End of option 2 - continue to next iteration
+                    continue
+                
+                # Option 1: New login needs temporary browser
+                if choice == '1':
+                    print('Starting new browser for login...')
+                    browser = playwright.chromium.launch(headless=False)
+                    context = browser.new_context(
+                        viewport={'width': 1920, 'height': 1080},
+                        locale='en-US',
+                        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    )
                     page = context.new_page()
                     
-                    # Check if we need to login
-                    if choice == '2' and session_manager.has_saved_session(username):
-                        print('Using saved session, checking if still logged in...')
-                        page.goto(Endpoints.BASE_URL)
-                        page.wait_for_timeout(3000)
-                        
-                        # Check if we're logged in by looking for profile icon or login button
-                        if page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]'):
-                            print('✓ Still logged in with saved session!')
-                            print('\nSession active! Waiting 30 seconds...')
-                            page.wait_for_timeout(30000)
-                        else:
-                            print('Session expired, need to login again')
-                            choice = '1'  # Force fresh login
+                    # Set up GraphQL interceptor
+                    interceptor = GraphQLInterceptor()
+                    interceptor.setup_interception(page)
                     
-                    if choice == '1':
-                        # Set up GraphQL interceptor
-                        interceptor = GraphQLInterceptor()
-                        interceptor.setup_interception(page)
-                        
-                        print('Navigating to Instagram login...')
-                        page.goto(Endpoints.LOGIN_PAGE)
-                        
-                        handle_cookie_banner(page)
-                        page.wait_for_timeout(1000)
-                        
-                        # Perform login and get result
-                        login_status, response_data = perform_login(page)
-                        
-                        if login_status == 'success':
-                            # Try to click the post-login button
-                            click_post_login_button(page)
-                            
-                            # Wait a bit for more GraphQL requests to be captured
-                            print('\nCapturing GraphQL metadata...')
-                            page.wait_for_timeout(3000)
-                            
-                            # Extract username from cookies or page
-                            if not username:
-                                # Try to get username from cookies
-                                cookies = context.cookies()
-                                for cookie in cookies:
-                                    if cookie['name'] == 'ds_user_id':
-                                        user_id = cookie['value']
-                                        # Use GraphQL to get username
-                                        graphql_client = GraphQLClient(page, None)
-                                        response_data = graphql_client.get_profile_info(user_id)
-                                        if response_data:
-                                            username = graphql_client.extract_username(response_data)
-                                        break
-                                
-                                # If still no username, try from login response
-                                if not username and response_data:
-                                    username = response_data.get('username')
-                                
-                                # Fallback: ask user
-                                if not username:
-                                    username = input("\nEnter your Instagram username (without @): ").strip()
-                                
-                                print(f"\n✓ Profile detected: @{username}")
-                            
-                            # Get captured GraphQL data
-                            graphql_data = interceptor.get_session_data()
-                            
-                            # Save the session state with GraphQL data
-                            print(f'\nSaving session for @{username}...')
-                            session_manager.save_context_state(context, username, graphql_data)
-                            
-                            # Wait a bit
-                            print('\nLogin successful! Session saved.')
-                            print('Waiting 10 seconds before closing...')
-                            page.wait_for_timeout(10000)
-                            
-                        elif login_status == '2fa':
-                            print('\nPlease complete 2FA in the browser')
-                            input('Press Enter when done...')
-                            
-                            # Extract username after 2FA
-                            if not username:
-                                cookies = context.cookies()
-                                for cookie in cookies:
-                                    if cookie['name'] == 'ds_user_id':
-                                        user_id = cookie['value']
-                                        graphql_client = GraphQLClient(page, None)
-                                        response_data = graphql_client.get_profile_info(user_id)
-                                        if response_data:
-                                            username = graphql_client.extract_username(response_data)
-                                        break
-                                
-                                if not username:
-                                    username = input("\nEnter your Instagram username (without @): ").strip()
-                                
-                                print(f"\n✓ Profile detected: @{username}")
-                            
-                            # Get captured GraphQL data after 2FA
-                            graphql_data = interceptor.get_session_data()
-                            # Save session after 2FA
-                            session_manager.save_context_state(context, username, graphql_data)
-                            
-                        elif login_status == 'checkpoint':
-                            print('\nPlease complete the checkpoint challenge in the browser')
-                            input('Press Enter when done...')
-                            
-                            # Extract username after checkpoint
-                            if not username:
-                                cookies = context.cookies()
-                                for cookie in cookies:
-                                    if cookie['name'] == 'ds_user_id':
-                                        user_id = cookie['value']
-                                        graphql_client = GraphQLClient(page, None)
-                                        response_data = graphql_client.get_profile_info(user_id)
-                                        if response_data:
-                                            username = graphql_client.extract_username(response_data)
-                                        break
-                                
-                                if not username:
-                                    username = input("\nEnter your Instagram username (without @): ").strip()
-                                
-                                print(f"\n✓ Profile detected: @{username}")
-                            
-                            # Get captured GraphQL data after checkpoint
-                            graphql_data = interceptor.get_session_data()
-                            # Save session after checkpoint
-                            session_manager.save_context_state(context, username, graphql_data)
-                            
-                        else:
-                            print('\nLogin was not successful')
-                            input('Press Enter to close browser...')
+                    print('Navigating to Instagram login...')
+                    page.goto(Endpoints.LOGIN_PAGE)
                     
+                    handle_cookie_banner(page)
+                    page.wait_for_timeout(1000)
+                    
+                    # Perform login and get result
+                    login_status, response_data = perform_login(page)
+                    
+                    if login_status == 'success':
+                        # Try to click the post-login button
+                        click_post_login_button(page)
+                    
+                    # Wait a bit for more GraphQL requests to be captured
+                    print('\nCapturing GraphQL metadata...')
+                    page.wait_for_timeout(3000)
+                    
+                    # Extract username from cookies or page
+                    if not username:
+                        # Try to get username from cookies
+                        cookies = context.cookies()
+                        for cookie in cookies:
+                            if cookie['name'] == 'ds_user_id':
+                                user_id = cookie['value']
+                                # Use GraphQL to get username
+                                graphql_client = GraphQLClient(page, None)
+                                response_data = graphql_client.get_profile_info(user_id)
+                                if response_data:
+                                    username = graphql_client.extract_username(response_data)
+                                break
+                        
+                        # If still no username, try from login response
+                        if not username and response_data:
+                            username = response_data.get('username')
+                        
+                        # Fallback: ask user
+                        if not username:
+                            username = input("\nEnter your Instagram username (without @): ").strip()
+                        
+                        print(f"\n✓ Profile detected: @{username}")
+                    
+                    # Get captured GraphQL data
+                    graphql_data = interceptor.get_session_data()
+                    
+                    # Save the session state with GraphQL data
+                    print(f'\nSaving session for @{username}...')
+                    session_manager.save_context_state(context, username, graphql_data)
+                    
+                    # Wait a bit
+                    print('\nLogin successful! Session saved.')
+                    print('Waiting 10 seconds before closing...')
+                    page.wait_for_timeout(10000)
+                    
+                elif login_status == '2fa':
+                    print('\nPlease complete 2FA in the browser')
+                    input('Press Enter when done...')
+                    
+                    # Extract username after 2FA
+                    if not username:
+                        cookies = context.cookies()
+                        for cookie in cookies:
+                            if cookie['name'] == 'ds_user_id':
+                                user_id = cookie['value']
+                                graphql_client = GraphQLClient(page, None)
+                                response_data = graphql_client.get_profile_info(user_id)
+                                if response_data:
+                                    username = graphql_client.extract_username(response_data)
+                                break
+                        
+                        if not username:
+                            username = input("\nEnter your Instagram username (without @): ").strip()
+                        
+                        print(f"\n✓ Profile detected: @{username}")
+                    
+                    # Get captured GraphQL data after 2FA
+                    graphql_data = interceptor.get_session_data()
+                    # Save session after 2FA
+                    session_manager.save_context_state(context, username, graphql_data)
+                    
+                elif login_status == 'checkpoint':
+                    print('\nPlease complete the checkpoint challenge in the browser')
+                    input('Press Enter when done...')
+                    
+                    # Extract username after checkpoint
+                    if not username:
+                        cookies = context.cookies()
+                        for cookie in cookies:
+                            if cookie['name'] == 'ds_user_id':
+                                user_id = cookie['value']
+                                graphql_client = GraphQLClient(page, None)
+                                response_data = graphql_client.get_profile_info(user_id)
+                                if response_data:
+                                    username = graphql_client.extract_username(response_data)
+                                break
+                        
+                        if not username:
+                            username = input("\nEnter your Instagram username (without @): ").strip()
+                        
+                        print(f"\n✓ Profile detected: @{username}")
+                    
+                    # Get captured GraphQL data after checkpoint
+                    graphql_data = interceptor.get_session_data()
+                    # Save session after checkpoint
+                    session_manager.save_context_state(context, username, graphql_data)
+                    
+                else:
+                    print('\nLogin was not successful')
+                    input('Press Enter to close browser...')
+                    
+                    # Cleanup for option 1
                     context.close()
                     browser.close()
                     print('Browser closed')
@@ -959,16 +1175,24 @@ def main():
                     session_manager.clear_all_sessions()
                 
         elif choice == '4':
-            first_automation(session_manager)
+            first_automation(session_manager, playwright)
             
         elif choice == '5':
-            scrape_following(session_manager)
+            scrape_following(session_manager, playwright)
             
         elif choice == '6':
-            scrape_explore(session_manager)
+            scrape_explore(session_manager, playwright)
             
         elif choice == '7':
-            massive_unfollow(session_manager)
+            massive_unfollow(session_manager, playwright)
+        
+        elif choice == '8':
+            BrowserManager.status()
+            
+        elif choice == '9':
+            print("\nClosing all browsers...")
+            BrowserManager.close_all()
+            print("✓ All browsers closed")
 
 if __name__ == '__main__':
     main()

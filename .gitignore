@@ -32,3 +32,6 @@ scraped_data/
 
 # Action logs
 action_logs/
+
+# API responses
+api_responses/
