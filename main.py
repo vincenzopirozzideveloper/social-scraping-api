@@ -9,6 +9,7 @@ from ig_scraper.api import Endpoints, GraphQLClient, GraphQLInterceptor
 from ig_scraper.auth import SessionManager
 from ig_scraper.scrapers.following import FollowingScraper
 from ig_scraper.scrapers.explore import ExploreScraper
+from ig_scraper.actions import UnfollowAction, ActionManager
 
 def signal_handler(sig, frame):
     print('\nClean exit.')
@@ -582,11 +583,110 @@ def select_profile(session_manager) -> Optional[str]:
         print("Invalid input")
         return None
 
+def batch_unfollow_test(session_manager):
+    """Test batch unfollow functionality"""
+    try:
+        # Select profile
+        username = select_profile(session_manager)
+        if not username:
+            return
+        
+        from playwright.sync_api import sync_playwright
+        
+        with sync_playwright() as p:
+            print('Starting browser with saved session...')
+            browser = p.chromium.launch(headless=False)
+            
+            # Create context with saved session
+            context = session_manager.create_browser_context(browser, username)
+            page = context.new_page()
+            
+            print('Loading Instagram...')
+            page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+            page.wait_for_timeout(3000)
+            
+            # Create following scraper
+            scraper = FollowingScraper(page, session_manager, username)
+            
+            # Verify login with GraphQL test
+            if not scraper.verify_login_with_graphql():
+                print("\n✗ Login verification failed. Please login again (option 1)")
+                context.close()
+                browser.close()
+                return
+            
+            print("\n✓ Login verified! Getting following list...")
+            
+            # Get following list (first 12)
+            following_data = scraper.get_following(count=12)
+            
+            if following_data and following_data.get('users'):
+                users = following_data['users']
+                print(f"\n✓ Found {len(users)} users in following list")
+                
+                # Display users to be unfollowed
+                print("\n" + "="*50)
+                print("USERS TO UNFOLLOW:")
+                print("="*50)
+                for i, user in enumerate(users, 1):
+                    print(f"{i}. @{user.get('username')} (ID: {user.get('id')})")
+                print("="*50)
+                
+                # Confirm action
+                confirm = input(f"\n⚠ Are you sure you want to unfollow these {len(users)} users? (yes/no): ")
+                if confirm.lower() != 'yes':
+                    print("✓ Operation cancelled")
+                    context.close()
+                    browser.close()
+                    return
+                
+                # Create action manager and unfollow action
+                action_manager = ActionManager(page, session_manager, username)
+                unfollow_action = UnfollowAction(page, session_manager, username)
+                
+                # Queue all unfollow actions
+                print("\n→ Queueing unfollow actions...")
+                for user in users:
+                    action_manager.add_action(
+                        unfollow_action,
+                        target_id=str(user.get('id')),
+                        target_username=user.get('username')
+                    )
+                
+                # Execute the queue
+                print("\n→ Starting batch unfollow...")
+                results = action_manager.execute_queue(delay_between=True, save_progress=True)
+                
+                # Show failed actions if any
+                failed = action_manager.get_failed_actions()
+                if failed:
+                    print(f"\n⚠ {len(failed)} actions failed:")
+                    for result in failed:
+                        print(f"  - @{result.target_username}: {result.error_message}")
+                    
+                    # Ask if user wants to retry
+                    retry = input("\nRetry failed actions? (y/n): ")
+                    if retry.lower() == 'y':
+                        action_manager.retry_failed(delay_between=True)
+                
+            else:
+                print("✗ Failed to get following list")
+            
+            print('\nWaiting 10 seconds before closing...')
+            page.wait_for_timeout(10000)
+            
+            context.close()
+            browser.close()
+            print('Browser closed')
+            
+    except Exception as e:
+        print(f'Error in batch_unfollow_test: {e}')
+
 def main():
     session_manager = SessionManager()
     
     while True:
-        choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n0: Exit\n> ')
+        choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Batch Unfollow Test\n0: Exit\n> ')
         if choice == '0':
             break
             
@@ -783,6 +883,9 @@ def main():
             
         elif choice == '6':
             scrape_explore(session_manager)
+            
+        elif choice == '7':
+            batch_unfollow_test(session_manager)
 
 if __name__ == '__main__':
     main()
