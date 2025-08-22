@@ -96,7 +96,7 @@ class FollowingScraper:
                 return None
             
             # Build URL
-            url = f"https://www.instagram.com/api/v1/friendships/{user_id}/following/"
+            url = Endpoints.FRIENDSHIPS_FOLLOWING.format(user_id=user_id)
             params = f"?count={count}"
             if max_id:
                 params += f"&max_id={max_id}"

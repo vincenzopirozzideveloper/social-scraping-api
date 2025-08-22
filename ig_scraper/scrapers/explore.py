@@ -94,7 +94,7 @@ class ExploreScraper:
                     break
             
             # Build URL with parameters
-            base_url = "https://www.instagram.com/api/v1/fbsearch/web/top_serp/"
+            base_url = Endpoints.EXPLORE_SEARCH
             params = [
                 f"enable_metadata=true",
                 f"query={query}"

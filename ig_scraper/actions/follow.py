@@ -2,6 +2,7 @@
 
 from typing import Optional, Dict, Any, List
 from .base import BaseAction, ActionResult
+from ..api import Endpoints
 
 
 class FollowAction(BaseAction):
@@ -10,7 +11,6 @@ class FollowAction(BaseAction):
     def __init__(self, page, session_manager, username: str):
         super().__init__(page, session_manager, username)
         self.action_type = "follow"
-        self.base_url = "https://www.instagram.com/api/v1/friendships/create/"
     
     def execute(self, target_id: str, target_username: Optional[str] = None) -> ActionResult:
         """Follow a user by their ID"""
@@ -22,7 +22,7 @@ class FollowAction(BaseAction):
             print(f"Target Username: @{target_username}")
         
         # Build request
-        url = f"{self.base_url}{target_id}/"
+        url = Endpoints.FRIENDSHIPS_CREATE.format(user_id=target_id)
         headers = self.get_headers()
         body = self.get_body_params(target_id)
         
@@ -74,7 +74,6 @@ class UnfollowAction(BaseAction):
     def __init__(self, page, session_manager, username: str):
         super().__init__(page, session_manager, username)
         self.action_type = "unfollow"
-        self.base_url = "https://www.instagram.com/api/v1/friendships/destroy/"
     
     def execute(self, target_id: str, target_username: Optional[str] = None) -> ActionResult:
         """Unfollow a user by their ID"""
@@ -86,7 +85,7 @@ class UnfollowAction(BaseAction):
             print(f"Target Username: @{target_username}")
         
         # Build request
-        url = f"{self.base_url}{target_id}/"
+        url = Endpoints.FRIENDSHIPS_DESTROY.format(user_id=target_id)
         headers = self.get_headers()
         body = self.get_body_params(target_id)
         
