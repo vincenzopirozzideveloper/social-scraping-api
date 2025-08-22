@@ -7,6 +7,7 @@ import time
 from ig_scraper.api import Endpoints, GraphQLClient, GraphQLInterceptor
 from ig_scraper.auth import SessionManager
 from ig_scraper.scrapers.following import FollowingScraper
+from ig_scraper.scrapers.explore import ExploreScraper
 
 def signal_handler(sig, frame):
     print('\nClean exit.')
@@ -293,11 +294,104 @@ def scrape_following(session_manager):
     except Exception as e:
         print(f'Error in scrape_following: {e}')
 
+def scrape_explore(session_manager):
+    """Scrape explore/search results"""
+    try:
+        # Load credentials to get username
+        with open('credentials.json', 'r') as f:
+            creds = json.load(f)
+        username = creds['email'].split('@')[0]
+        
+        # Check if we have a saved session
+        if not session_manager.has_saved_session(username):
+            print("No saved session found. Please login first (option 1)")
+            return
+        
+        from playwright.sync_api import sync_playwright
+        
+        with sync_playwright() as p:
+            print('Starting browser with saved session...')
+            browser = p.chromium.launch(headless=False)
+            
+            # Create context with saved session
+            context = session_manager.create_browser_context(browser, username)
+            page = context.new_page()
+            
+            print('Loading Instagram...')
+            page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+            page.wait_for_timeout(3000)
+            
+            # Create explore scraper
+            scraper = ExploreScraper(page, session_manager, username)
+            
+            # Verify login with GraphQL test
+            if not scraper.verify_login_with_graphql():
+                print("\n✗ Login verification failed. Please login again (option 1)")
+                context.close()
+                browser.close()
+                return
+            
+            print("\n✓ Login verified! Ready for explore search...")
+            
+            # Get search query from user
+            query = input("\nEnter search query (e.g. 'news', 'tech', 'food'): ").strip()
+            if not query:
+                print("No query provided, using default: 'news'")
+                query = "news"
+            
+            # Perform initial search
+            explore_data = scraper.search_explore(query)
+            
+            if not explore_data:
+                print("✗ Failed to get explore results")
+            else:
+                # Display the results
+                scraper.display_results(explore_data)
+                
+                # Pagination loop
+                page_count = 1
+                while True:
+                    # Check if there are more results (in root or media_grid)
+                    next_max_id = explore_data.get('next_max_id') or explore_data.get('media_grid', {}).get('next_max_id')
+                    if not next_max_id:
+                        print("\n✓ No more pages available")
+                        break
+                    
+                    print("\n" + "="*50)
+                    choice = input(f"Load more results? (Page {page_count + 1}) (y/n): ")
+                    if choice.lower() != 'y':
+                        print("✓ Stopped pagination by user")
+                        break
+                    
+                    # Get next page
+                    print(f"\nFetching page {page_count + 1}...")
+                    explore_data = scraper.search_explore(query, next_max_id=next_max_id)
+                    
+                    if not explore_data:
+                        print("✗ Failed to get next page")
+                        break
+                    
+                    # Display the new results
+                    scraper.display_results(explore_data)
+                    page_count += 1
+                    
+                print(f"\n✓ Total pages loaded: {page_count}")
+            
+            print('\nWaiting 10 seconds before closing...')
+            page.wait_for_timeout(10000)
+            
+            context.close()
+            browser.close()
+            print('Browser closed')
+            
+    except Exception as e:
+        print(f'Error in scrape_explore: {e}')
+
 def main():
     session_manager = SessionManager()
     
     while True:
-        choice = input('\n1: Login\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n0: Exit\n> ')
+        choice = input('\n1: Login\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n0: Exit\n> ')
         if choice == '0':
             break
             
@@ -408,6 +502,9 @@ def main():
             
         elif choice == '5':
             scrape_following(session_manager)
+            
+        elif choice == '6':
+            scrape_explore(session_manager)
 
 if __name__ == '__main__':
     main()
