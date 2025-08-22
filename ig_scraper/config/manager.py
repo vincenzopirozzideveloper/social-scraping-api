@@ -6,13 +6,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from copy import deepcopy
 from .defaults import DEFAULT_CONFIG
+from .env_config import BROWSER_SESSIONS_DIR
 
 
 class ConfigManager:
     """Manages configuration for each Instagram profile"""
     
-    def __init__(self, base_dir: str = "./browser_sessions"):
-        self.base_dir = Path(base_dir)
+    def __init__(self, base_dir: Optional[str] = None):
+        self.base_dir = Path(base_dir) if base_dir else BROWSER_SESSIONS_DIR
         self.profiles_dir = self.base_dir / "profiles"
         
     def get_config_path(self, username: str) -> Path:

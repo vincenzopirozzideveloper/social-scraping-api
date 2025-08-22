@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 from playwright.sync_api import Browser, BrowserContext, Page
 import threading
+from ig_scraper.config.env_config import BROWSER_SESSIONS_DIR
 
 
 class ProfileLockError(Exception):
@@ -24,7 +25,7 @@ class BrowserManager:
     @classmethod
     def is_profile_locked(cls, username: str) -> bool:
         """Check if a profile is currently in use"""
-        lock_file = Path(f"browser_sessions/{username}/.lock")
+        lock_file = BROWSER_SESSIONS_DIR / username / ".lock"
         
         if lock_file.exists():
             # Check if lock is stale (older than 1 hour)
@@ -42,7 +43,7 @@ class BrowserManager:
             return False
         
         # Create lock file
-        lock_file = Path(f"browser_sessions/{username}/.lock")
+        lock_file = BROWSER_SESSIONS_DIR / username / ".lock"
         lock_file.parent.mkdir(parents=True, exist_ok=True)
         
         lock_data = {
@@ -93,7 +94,23 @@ class BrowserManager:
         # Create new browser instance
         print(f"[DEBUG] Creating new browser for @{username}")
         try:
-            browser = playwright.chromium.launch(headless=False)
+            # Import from config for consistent settings
+            from ..config.env_config import IS_DOCKER, HEADLESS_MODE
+            
+            launch_args = {
+                'headless': HEADLESS_MODE,
+            }
+            
+            if IS_DOCKER:
+                # Additional args for Docker environment
+                launch_args['args'] = [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu'
+                ]
+            
+            browser = playwright.chromium.launch(**launch_args)
             context = session_manager.create_browser_context(browser, username)
             
             instance = {
@@ -199,7 +216,7 @@ class BrowserManager:
                 print(f"@{profile['username']}: {profile['tabs']} tabs open")
         
         # Check for locked profiles
-        lock_dir = Path("browser_sessions")
+        lock_dir = BROWSER_SESSIONS_DIR
         if lock_dir.exists():
             for lock_file in lock_dir.glob("*/.lock"):
                 username = lock_file.parent.name

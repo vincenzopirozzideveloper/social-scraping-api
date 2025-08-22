@@ -10,7 +10,8 @@
       "Bash(python:*)",
       "Bash(git push:*)",
       "Bash(mv:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,1 +1,4 @@
 playwright
+python-dotenv
+pymysql
+sqlalchemy
