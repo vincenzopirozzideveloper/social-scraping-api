@@ -1,0 +1,32 @@
+fetch("https://www.instagram.com/graphql/query", {
+  "headers": {
+    "accept": "*/*",
+    "accept-language": "en-GB,en;q=0.9,it-IT;q=0.8,it;q=0.7,en-US;q=0.6",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "priority": "u=1, i",
+    "sec-ch-prefers-color-scheme": "light",
+    "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\"",
+    "sec-ch-ua-full-version-list": "\"Not;A=Brand\";v=\"99.0.0.0\", \"Google Chrome\";v=\"139.0.7258.128\", \"Chromium\";v=\"139.0.7258.128\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-model": "\"\"",
+    "sec-ch-ua-platform": "\"Windows\"",
+    "sec-ch-ua-platform-version": "\"19.0.0\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-asbd-id": "359341",
+    "x-bloks-version-id": "91b4f3c0d432ef4a2d4f3ad30ae9fc795041a95a6c6b9a2a8f230816c480d891",
+    "x-csrftoken": "wXnpji4ww89CmMWfUFBYc28WwIHIoivD",
+    "x-fb-friendly-name": "PolarisFeedTimelineRootV2Query",
+    "x-fb-lsd": "82vCVHTQXoKzmf1ZUb0Zqu",
+    "x-ig-app-id": "936619743392459",
+    "x-root-field-name": "xdt_api__v1__feed__timeline__connection"
+  },
+  "referrer": "https://www.instagram.com/explore/search/keyword/?q=news",
+  "body": "av=17841455626258674&__d=www&__user=0&__a=1&__req=6&__hs=20321.HYP%3Ainstagram_web_pkg.2.1...0&dpr=1&__ccg=EXCELLENT&__rev=1026178298&__s=ubne1t%3Aersjqa%3Aygsox1&__hsi=7541180123745009325&__dyn=7xeUjG1mxu1syUbFp41twpUnwgU7SbzEdF8aUco2qwJxS0DU2wx609vCwjE1EE2Cw8G11wBz81s8hwGxu786a3a1YwBgao6C0Mo2swtUd8-U2zxe2GewGw9a361qwuEjUlwhEe87q0oa2-azqwt8d-2u2J0bS1LwTwKG1pg2fwxyo6O1FwlA3a3zhA6bwIxeUnAwCAxW1oxe6UaU3cyVrx60jy7EG3a13Aw&__csr=gN0wjMXkr6TEFthHsIKmxtLl9O9tL8_pJpkFqGDGj-EiQBVaSLGhkEGXhpByvjBFqDl4rCgCayayZ7LGECrCh8Bp4FrVucCzGyGVryS4kdUHABByEsyECbDxp2kmu49V8WdGFFEkQWLx2vDAy8Wiubxal2GgO8WVk5o8ogg4a8ACyuEC8z8mhHjF5w05xiwuC8o3FK1Sa048Ux2U1eo38w-jP03ME0tmwIwIwEhNg7u4UoAbgEwjghw4HxK1DDy4420a-1IwUg1TU1uIU7lU3wwpC6A2x5g0S20K8yEtw8S01P3w1cC087w52w0Auw3BE&__hsdp=gm8cMLkT9E9PjjOjjpaRluW4rAUqechuiq_y92oOEjidhGgK6kaAEN3xO3WmKm9P0Jox7sa8wSuV6uu5U99PtgQ82ERXG8hp4dBwn6520kogG6ClwIUqwIwKgge3y5EowFwlU2nxC78gCGdDx7yK3W1gCw6dg1Ko0R-3e0z82fwoUeU5em1nx-0A82rweG4E3cwIw9uhU2qwcG15zoS58bh03Iwl85a&__hblp=389E26wNwGU-UvwxgS8w4EyUiAzpFt0sVUpoO1WwEBghxeq2-4EKdUqwIzU-8yqwh-2-6o-dzo8pUrw9qi3mWJoSu4uaUfElwWCxSfx60WE693ES0PEeogw8a1Swjo0B66obE88iw8O3O1hgfo9oryUjwo9U4y7U2gwIwrE3Gxa0P89FoowmEC6p7w9G1gwuod8gzoR4zEpx2x02lg5m1ayo5a22i&__sjsp=gm8cMLkT9E9P8IYybdAAllXEhKjxEUN5V9H-8A9z8midhGg9kfwrFp84Z7sa8wpApVUnwADdR3gwax6U9Fo5Nw2iU2nxC78&__comet_req=7&fb_dtsg=NAfvgKhf9ssalp798xyvzZu8vBAeNI0oYzE5q8SBwg2XZsXC2bpLvXg%3A17843683126168011%3A1755806564&jazoest=26464&lsd=82vCVHTQXoKzmf1ZUb0Zqu&__spin_r=1026178298&__spin_b=trunk&__spin_t=1755817822&__crn=comet.igweb.PolarisKeywordSearchExploreRoute&fb_api_caller_class=RelayModern&fb_api_req_friendly_name=PolarisFeedTimelineRootV2Query&variables=%7B%22after%22%3Anull%2C%22before%22%3Anull%2C%22data%22%3A%7B%22device_id%22%3A%229CA5049A-A949-4B15-B73A-71DD21AA30C7%22%2C%22is_async_ads_double_request%22%3A%220%22%2C%22is_async_ads_in_headload_enabled%22%3A%220%22%2C%22is_async_ads_rti%22%3A%220%22%2C%22rti_delivery_backend%22%3A%220%22%7D%2C%22first%22%3A3%2C%22last%22%3Anull%2C%22variant%22%3A%22home%22%2C%22pass_prefetch_pagination_gk%22%3Afalse%2C%22__relay_internal__pv__PolarisIsLoggedInrelayprovider%22%3Atrue%7D&server_timestamps=true&doc_id=24468525692767367",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});

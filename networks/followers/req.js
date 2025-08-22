@@ -1,0 +1,30 @@
+fetch("https://www.instagram.com/api/v1/friendships/55589398208/followers/?count=12&search_surface=follow_list_page", {
+  "headers": {
+    "accept": "*/*",
+    "accept-language": "en-GB,en;q=0.9,it-IT;q=0.8,it;q=0.7,en-US;q=0.6",
+    "cache-control": "no-cache",
+    "pragma": "no-cache",
+    "priority": "u=1, i",
+    "sec-ch-prefers-color-scheme": "light",
+    "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\"",
+    "sec-ch-ua-full-version-list": "\"Not;A=Brand\";v=\"99.0.0.0\", \"Google Chrome\";v=\"139.0.7258.128\", \"Chromium\";v=\"139.0.7258.128\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-model": "\"\"",
+    "sec-ch-ua-platform": "\"Windows\"",
+    "sec-ch-ua-platform-version": "\"19.0.0\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-asbd-id": "359341",
+    "x-csrftoken": "wXnpji4ww89CmMWfUFBYc28WwIHIoivD",
+    "x-ig-app-id": "936619743392459",
+    "x-ig-www-claim": "hmac.AR0_eDs2CvwesGHfluAADTrcOpnm7KvsqmfgyDHxk34UxnBL",
+    "x-requested-with": "XMLHttpRequest",
+    "x-web-session-id": "hg852r:7ot9wz:9eo2xj"
+  },
+  "referrer": "https://www.instagram.com/vincenzopirozzi.developer_2/followers/",
+  "body": null,
+  "method": "GET",
+  "mode": "cors",
+  "credentials": "include"
+});
