@@ -9,7 +9,7 @@ from ig_scraper.scrapers.following import FollowingScraper
 from ig_scraper.scrapers.explore import ExploreScraper
 from ig_scraper.actions import UnfollowAction, ActionManager
 from ig_scraper.config import ConfigManager
-from ig_scraper.config.env_config import CREDENTIALS_PATH, IS_DOCKER, HEADLESS_MODE
+from ig_scraper.config.env_config import CREDENTIALS_PATH, HEADLESS_MODE
 from ig_scraper.core.handlers import (
     handle_cookie_banner,
     handle_2fa_with_backup,
@@ -67,13 +67,13 @@ class Commands:
                 'headless': HEADLESS_MODE,
             }
             
-            if IS_DOCKER:
-                launch_args['args'] = [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu'
-                ]
+            # Always use Docker-optimized args
+            launch_args['args'] = [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu'
+            ]
             
             browser = playwright.chromium.launch(**launch_args)
             context = browser.new_context(
@@ -156,8 +156,8 @@ class Commands:
             if page.query_selector('svg[aria-label="Profile"]') or page.query_selector('span[role="link"][tabindex="0"]'):
                 print(f'[{username}] ✓ Still logged in with saved session!')
                 
-                if IS_DOCKER or HEADLESS_MODE:
-                    screenshots_dir = Path('/var/www/app/screenshots') if IS_DOCKER else Path('screenshots')
+                if HEADLESS_MODE:
+                    screenshots_dir = Path('/app/screenshots')  # Always Docker path
                     screenshots_dir.mkdir(exist_ok=True)
                     
                     print(f'\n[{username}] Screenshot Options:')
@@ -784,7 +784,7 @@ class Commands:
                 BrowserManager.close_page(username, page)
     
     def view_screenshots(self):
-        screenshots_dir = Path('/var/www/app/screenshots') if IS_DOCKER else Path('screenshots')
+        screenshots_dir = Path('/app/screenshots')  # Always Docker path
         
         if not screenshots_dir.exists():
             print("No screenshots directory found")
@@ -806,6 +806,5 @@ class Commands:
         print("="*60)
         print(f"Screenshots directory: {screenshots_dir}")
         
-        if IS_DOCKER:
-            print("\nTo view screenshots from host:")
-            print("docker cp instagram_scraper:/var/www/app/screenshots ./")
+        print("\nTo view screenshots from host:")
+        print("docker cp instagram_scraper:/app/screenshots ./")

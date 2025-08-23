@@ -1,6 +1,6 @@
 """Add is_liked column to posts_processed table"""
 
-from migration import Migration
+from .base import Migration
 
 
 class AddIsLikedColumn(Migration):

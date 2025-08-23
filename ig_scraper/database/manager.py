@@ -40,7 +40,7 @@ class DatabaseManager:
         """Initialize database connection parameters"""
         # Use same configuration as test_db_connection.py
         self.config = {
-            'host': os.getenv('DB_HOST', 'localhost'),
+            'host': os.getenv('DB_HOST', 'instagram-mariadb'),
             'port': int(os.getenv('DB_PORT', 3306)),
             'user': os.getenv('DB_USER', 'root'),
             'password': os.getenv('DB_PASSWORD', ''),

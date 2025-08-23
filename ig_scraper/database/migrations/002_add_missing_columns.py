@@ -1,6 +1,6 @@
 """Add missing columns to existing tables"""
 
-from migration import Migration
+from .base import Migration
 
 
 class AddMissingColumns(Migration):

@@ -95,20 +95,18 @@ class BrowserManager:
         print(f"[DEBUG] Creating new browser for @{username}")
         try:
             # Import from config for consistent settings
-            from ..config.env_config import IS_DOCKER, HEADLESS_MODE
+            from ..config.env_config import HEADLESS_MODE
             
             launch_args = {
                 'headless': HEADLESS_MODE,
-            }
-            
-            if IS_DOCKER:
-                # Additional args for Docker environment
-                launch_args['args'] = [
+                # Always use Docker-optimized args
+                'args': [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-gpu'
                 ]
+            }
             
             browser = playwright.chromium.launch(**launch_args)
             context = session_manager.create_browser_context(browser, username)
@@ -207,8 +205,7 @@ class BrowserManager:
         
         # Force terminate any hanging browser processes in Docker
         try:
-            from ..config.env_config import IS_DOCKER
-            if IS_DOCKER:
+            # Always in Docker environment now
                 import subprocess
                 subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
                 print("[DEBUG] Force killed browser processes in Docker")

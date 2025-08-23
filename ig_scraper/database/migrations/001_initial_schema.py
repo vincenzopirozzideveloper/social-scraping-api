@@ -1,6 +1,6 @@
 """Initial database schema migration"""
 
-from migration import Migration
+from .base import Migration
 
 
 class InitialSchema(Migration):

@@ -11,16 +11,17 @@ from ..actions import ActionManager
 from ..actions.interaction_graphql import LikeActionGraphQL, CommentActionGraphQL
 from ..scrapers.explore import ExploreScraper
 from ..database import DatabaseManager
+from ..config.defaults import DEFAULT_CONFIG
 
 
 class ExploreAPIAutomationDB:
     """API-based Explore Automation with complete database tracking"""
     
-    def __init__(self, page, session_manager, username: str, config_path: str = "automation_config.json"):
+    def __init__(self, page, session_manager, username: str):
         self.page = page
         self.session_manager = session_manager
         self.username = username
-        self.config = self._load_config(config_path)
+        self.config = self._load_config()
         
         # Database manager
         self.db = DatabaseManager()
@@ -294,18 +295,18 @@ class ExploreAPIAutomationDB:
         except Exception as e:
             print(f"Error updating session stats: {e}")
     
-    def _load_config(self, config_path: str) -> Dict:
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                # Save config to database
-                self._save_config_to_db(config)
-                return config
-        except FileNotFoundError:
-            print(f"Configuration file {config_path} not found. Using defaults.")
-            config = self._get_default_config()
-            self._save_config_to_db(config)
-            return config
+    def _load_config(self) -> Dict:
+        """Load configuration from centralized defaults"""
+        # Extract automation config from DEFAULT_CONFIG
+        config = {
+            "explore": DEFAULT_CONFIG.get("automation", {}).get("explore", {}),
+            "comments": DEFAULT_CONFIG.get("automation", {}).get("comments", {}),
+            "delays": DEFAULT_CONFIG.get("automation", {}).get("delays", {}),
+            "limits": DEFAULT_CONFIG.get("automation", {}).get("limits", {})
+        }
+        # Save config to database for tracking
+        self._save_config_to_db(config)
+        return config
     
     def _save_config_to_db(self, config: Dict):
         """Save automation config to database"""
@@ -323,14 +324,6 @@ class ExploreAPIAutomationDB:
         except:
             pass  # Config saving is optional
     
-    def _get_default_config(self) -> Dict:
-        return {
-            "explore": {"enabled": True, "max_posts": 10, "actions": {"like": True, "comment": True}},
-            "comments": {"pool": ["Nice!", "Great!"], "use_random": True},
-            "delays": {"between_posts_min": 3, "between_posts_max": 8, 
-                      "between_actions_min": 1, "between_actions_max": 3},
-            "limits": {"max_likes_per_session": 50, "max_comments_per_session": 30, "stop_on_error": True}
-        }
     
     def _get_next_comment(self) -> str:
         """Get next comment from the pool"""

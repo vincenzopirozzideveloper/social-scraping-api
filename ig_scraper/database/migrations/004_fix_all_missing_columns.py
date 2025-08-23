@@ -1,6 +1,6 @@
 """Fix all missing columns in the database"""
 
-from migration import Migration
+from .base import Migration
 
 
 class FixAllMissingColumns(Migration):

@@ -1,6 +1,6 @@
 """Fix response_body column size for large API responses"""
 
-from migration import Migration
+from .base import Migration
 
 
 class FixResponseBodySize(Migration):

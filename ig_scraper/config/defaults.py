@@ -1,14 +1,11 @@
-"""Default configuration values"""
+"""Default configuration values for Instagram Scraper (Docker environment)"""
 
-from pathlib import Path
-import os
-
-# Use environment variables if available, otherwise use relative paths
-API_RESPONSES_DIR = os.environ.get('IG_API_RESPONSES_DIR', 'api_responses')
-SCRAPED_DATA_DIR = os.environ.get('IG_SCRAPED_DATA_DIR', 'scraped_data')
-ACTION_LOGS_DIR = os.environ.get('IG_ACTION_LOGS_DIR', 'action_logs')
-BROWSER_SESSIONS_DIR = os.environ.get('IG_BROWSER_SESSIONS_DIR', 'browser_sessions')
-LOGS_DIR = os.environ.get('IG_LOGS_DIR', 'logs')
+# Docker paths are fixed - no need for environment variables
+API_RESPONSES_DIR = '/app/data/api_responses'
+SCRAPED_DATA_DIR = '/app/data/scraped_data'
+ACTION_LOGS_DIR = '/app/data/action_logs'
+BROWSER_SESSIONS_DIR = '/app/data/browser_sessions'
+LOGS_DIR = '/app/data/logs'
 
 DEFAULT_CONFIG = {
     "scraping": {
@@ -91,5 +88,51 @@ DEFAULT_CONFIG = {
         "dry_run": False,              # Simulate actions without executing
         "max_batch_size": 50,          # Maximum items in batch operations
         "stop_on_error": False         # Stop batch operations on first error
+    },
+    "automation": {
+        "explore": {
+            "enabled": True,
+            "max_posts": 10,
+            "max_posts_per_page": 20,
+            "infinite_scroll": True,
+            "pause_every_n_posts": 10,
+            "pause_duration_min": 30,
+            "pause_duration_max": 60,
+            "actions": {
+                "like": True,
+                "comment": True
+            }
+        },
+        "comments": {
+            "pool": [
+                "Amazing! 🔥",
+                "Love this! ❤️",
+                "Great content!",
+                "👏👏👏",
+                "Awesome!",
+                "Nice! 💯",
+                "Incredible!",
+                "Fantastic post!",
+                "So cool!",
+                "This is great!"
+            ],
+            "use_random": True,
+            "cycle_comments": False
+        },
+        "delays": {
+            "between_posts_min": 5,
+            "between_posts_max": 15,
+            "between_actions_min": 2,
+            "between_actions_max": 5,
+            "between_pages_min": 10,
+            "between_pages_max": 20,
+            "page_load_wait": 5
+        },
+        "limits": {
+            "max_likes_per_session": 500,
+            "max_comments_per_session": 300,
+            "stop_on_error": False,
+            "max_consecutive_errors": 5
+        }
     }
 }

@@ -1,6 +1,6 @@
 """Add tables for detailed request/response tracking"""
 
-from migration import Migration
+from .base import Migration
 
 
 class AddRequestTracking(Migration):
