@@ -9,8 +9,8 @@ from ..api import Endpoints
 class LikeActionGraphQL(BaseAction):
     """Action to like a post using GraphQL"""
     
-    def __init__(self, page, session_manager, username: str):
-        super().__init__(page, session_manager, username)
+    def __init__(self, page, session_manager, username: str, session_id: Optional[int] = None):
+        super().__init__(page, session_manager, username, session_id)
         self.action_type = "like"
         
         # GraphQL doc ID for like mutation
@@ -161,8 +161,8 @@ class LikeActionGraphQL(BaseAction):
 class CommentActionGraphQL(BaseAction):
     """Action to comment on a post - still uses REST API"""
     
-    def __init__(self, page, session_manager, username: str):
-        super().__init__(page, session_manager, username)
+    def __init__(self, page, session_manager, username: str, session_id: Optional[int] = None):
+        super().__init__(page, session_manager, username, session_id)
         self.action_type = "comment"
     
     def execute(self, media_id: str, comment_text: str, media_code: Optional[str] = None) -> ActionResult:
@@ -206,9 +206,24 @@ class CommentActionGraphQL(BaseAction):
                 
                 # Extract comment ID and build URL
                 comment_id = response_data.get('id')
+                comment_url = None
                 if comment_id and media_code:
                     comment_url = f"https://www.instagram.com/p/{media_code}/c/{comment_id}/"
                     print(f"📍 Comment URL: {comment_url}")
+                
+                # Save comment to database
+                if self.db and self.profile_id:
+                    try:
+                        self.db.save_comment(
+                            comment_id=comment_id,
+                            media_id=media_id_only,
+                            media_code=media_code,
+                            comment_text=comment_text,
+                            comment_url=comment_url,
+                            profile_id=self.profile_id
+                        )
+                    except Exception as e:
+                        print(f"[WARNING] Failed to save comment to DB: {e}")
                 
                 result = ActionResult(
                     success=True,

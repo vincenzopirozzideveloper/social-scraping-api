@@ -231,6 +231,12 @@ class ExploreAPIAutomation:
                         if like_result.success:
                             self.stats["likes"] += 1
                             post_processed = True
+                            # Update session stats in DB
+                            if self.db and self.session_id:
+                                try:
+                                    self.db.update_session(self.session_id, likes_count=self.stats["likes"])
+                                except:
+                                    pass
                         else:
                             self.stats["errors"] += 1
                             self.stats["like_errors"].append({
@@ -263,6 +269,12 @@ class ExploreAPIAutomation:
                         if comment_result.success:
                             self.stats["comments"] += 1
                             post_processed = True
+                            # Update session stats in DB
+                            if self.db and self.session_id:
+                                try:
+                                    self.db.update_session(self.session_id, comments_count=self.stats["comments"])
+                                except:
+                                    pass
                         else:
                             self.stats["errors"] += 1
                             self.stats["comment_errors"].append({

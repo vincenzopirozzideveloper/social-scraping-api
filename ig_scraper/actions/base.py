@@ -9,6 +9,7 @@ from pathlib import Path
 import random
 from ..config import ConfigManager
 from ..config.env_config import ACTION_LOGS_DIR
+from ..database import DatabaseManager
 
 
 @dataclass
@@ -30,13 +31,24 @@ class ActionResult:
 class BaseAction:
     """Base class for Instagram actions"""
     
-    def __init__(self, page, session_manager, username: str):
+    def __init__(self, page, session_manager, username: str, session_id: Optional[int] = None):
         self.page = page
         self.session_manager = session_manager
         self.username = username
         self.action_type = "base"
+        self.session_id = session_id
+        self.profile_id = None
         
-        # Create logs directory
+        # Initialize database manager
+        try:
+            self.db = DatabaseManager()
+            # Get or create profile in database
+            self.profile_id = self.db.get_or_create_profile(username)
+        except Exception as e:
+            print(f"[WARNING] Could not connect to database: {e}")
+            self.db = None
+        
+        # Create logs directory (keeping for backward compatibility)
         self.logs_dir = ACTION_LOGS_DIR / username / datetime.now().strftime("%Y%m%d")
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         
@@ -192,9 +204,24 @@ class BaseAction:
         time.sleep(delay)
     
     def log_action(self, result: ActionResult):
-        """Log action result to file"""
-        log_file = self.logs_dir / f"{self.action_type}_log.jsonl"
+        """Log action result to database and file"""
+        # Log to database if available
+        if self.db and self.session_id:
+            try:
+                self.db.log_action(
+                    session_id=self.session_id,
+                    action_type=result.action_type,
+                    target_id=result.target_id,
+                    target_username=result.target_username,
+                    success=result.success,
+                    error_message=result.error_message,
+                    response_data=result.response_data
+                )
+            except Exception as e:
+                print(f"[WARNING] Failed to log to database: {e}")
         
+        # Also log to file for backward compatibility
+        log_file = self.logs_dir / f"{self.action_type}_log.jsonl"
         with open(log_file, 'a', encoding='utf-8') as f:
             f.write(json.dumps(result.__dict__, ensure_ascii=False) + "\n")
     
