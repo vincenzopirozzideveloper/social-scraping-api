@@ -1113,7 +1113,7 @@ def main():
                     print(f"  → @{profile['username']}: {profile['tabs']} tabs")
             
             
-            choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Massive Unfollow (ALL)\n8: Browser Status\n9: Close All Browsers\nS: View Screenshots\n0: Exit\n> ')
+            choice = input('\n1: Login (new or add profile)\n2: Login with saved session\n3: Clear saved sessions\n4: First Automation (GraphQL test)\n5: Scrape Following\n6: Explore Search\n7: Massive Unfollow (ALL)\n8: Explore Automation (Like & Comment)\n9: Browser Status\n10: Close All Browsers\nS: View Screenshots\n0: Exit\n> ')
             if choice == '0':
                 break
             
@@ -1318,11 +1318,81 @@ def main():
             
             elif choice == '7':
                 massive_unfollow(session_manager, playwright)
-        
+            
             elif choice == '8':
+                # Explore automation (like & comment) using API only
+                from ig_scraper.browser import BrowserManager
+                from ig_scraper.browser.manager import ProfileLockError
+                from ig_scraper.automation.explore_api import ExploreAPIAutomation
+                
+                try:
+                    # Select profile
+                    username = select_profile(session_manager)
+                    if not username:
+                        continue
+                    
+                    print('Getting browser page...')
+                    try:
+                        page = BrowserManager.get_new_page(username, session_manager, playwright)
+                    except ProfileLockError as e:
+                        print(f'\n❌ {e}')
+                        print(f'Profile @{username} is already open in another window.')
+                        print('Please close the other window or choose a different profile.')
+                        continue
+                    
+                    print('Loading Instagram...')
+                    page.goto(Endpoints.BASE_URL, wait_until='domcontentloaded')
+                    page.wait_for_timeout(3000)
+                    
+                    # Create automation instance
+                    automation = ExploreAPIAutomation(page, session_manager, username)
+                    
+                    # Verify login
+                    if not automation.verify_login():
+                        print("\n✗ Login verification failed. Please login again (option 1)")
+                        BrowserManager.close_page(username, page)
+                        continue
+                    
+                    print('✓ Login verified!')
+                    
+                    # Ask for search query (optional)
+                    print("\n" + "="*50)
+                    print("EXPLORE AUTOMATION OPTIONS")
+                    print("="*50)
+                    print("1. General explore (trending)")
+                    print("2. Search specific topic")
+                    print("="*50)
+                    
+                    explore_choice = input("Select option (1-2): ")
+                    search_query = None
+                    
+                    if explore_choice == '2':
+                        search_query = input("Enter search query (e.g. 'news', 'tech', 'food'): ").strip()
+                        if not search_query:
+                            print("No query provided, using general explore")
+                    
+                    # Run automation
+                    stats = automation.run_automation(search_query)
+                    
+                    print('\nWaiting 10 seconds before closing tab...')
+                    page.wait_for_timeout(10000)
+                    
+                    BrowserManager.close_page(username, page)
+                    print('Tab closed')
+                    
+                except KeyboardInterrupt:
+                    print("\n\n⚠ Operation interrupted by user")
+                    if 'page' in locals():
+                        BrowserManager.close_page(username, page)
+                except Exception as e:
+                    print(f'Error in explore automation: {e}')
+                    if 'page' in locals():
+                        BrowserManager.close_page(username, page)
+        
+            elif choice == '9':
                 BrowserManager.status()
             
-            elif choice == '9':
+            elif choice == '10':
                 print("\nClosing all browsers...")
                 BrowserManager.close_all()
                 print("✓ All browsers closed")

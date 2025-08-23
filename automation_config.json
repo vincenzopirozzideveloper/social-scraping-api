@@ -1,0 +1,45 @@
+{
+  "explore": {
+    "enabled": true,
+    "max_posts_per_page": 20,
+    "infinite_scroll": true,
+    "pause_every_n_posts": 10,
+    "pause_duration_min": 30,
+    "pause_duration_max": 60,
+    "actions": {
+      "like": true,
+      "comment": true
+    }
+  },
+  "comments": {
+    "pool": [
+      "Amazing! 🔥",
+      "Love this! ❤️",
+      "Great content!",
+      "👏👏👏",
+      "Awesome!",
+      "Nice! 💯",
+      "Incredible!",
+      "Fantastic post!",
+      "So cool!",
+      "This is great!"
+    ],
+    "use_random": true,
+    "cycle_comments": false
+  },
+  "delays": {
+    "between_posts_min": 5,
+    "between_posts_max": 15,
+    "between_actions_min": 2,
+    "between_actions_max": 5,
+    "between_pages_min": 10,
+    "between_pages_max": 20,
+    "page_load_wait": 5
+  },
+  "limits": {
+    "max_likes_per_session": 500,
+    "max_comments_per_session": 300,
+    "stop_on_error": false,
+    "max_consecutive_errors": 5
+  }
+}
