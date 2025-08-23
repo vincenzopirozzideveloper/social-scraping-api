@@ -1292,3 +1292,83 @@ class Commands:
         
         print("\nTo view screenshots from host:")
         print("docker cp instagram_scraper:/app/screenshots ./")
+    
+    def manage_browser_locks(self):
+        """Manage browser locks in database"""
+        from ig_scraper.database import DatabaseManager
+        
+        db = DatabaseManager()
+        
+        while True:
+            print("\n" + "="*50)
+            print("BROWSER LOCK MANAGEMENT")
+            print("="*50)
+            
+            # Get all locks
+            locks = db.get_all_browser_locks()
+            
+            if not locks:
+                print("No browser locks found in database")
+                print("="*50)
+                return
+            
+            print("\n📔 ACTIVE LOCKS:")
+            print("-"*50)
+            
+            for i, lock in enumerate(locks, 1):
+                if isinstance(lock, dict):
+                    lock_id = lock['id']
+                    username = lock['username']
+                    minutes = lock['locked_minutes_ago']
+                    pid = lock['pid']
+                    info = lock['browser_info']
+                else:
+                    lock_id = lock[0]
+                    username = lock[1]
+                    minutes = lock[5]
+                    pid = lock[3]
+                    info = lock[4]
+                
+                print(f"{i}. Lock #{lock_id}: @{username}")
+                print(f"   Locked: {minutes} minutes ago")
+                print(f"   PID: {pid or 'N/A'}")
+                print(f"   Info: {info or 'N/A'}")
+                print()
+            
+            print("-"*50)
+            print("\nOptions:")
+            print("1: Clear specific lock (by number)")
+            print("2: Clear ALL locks")
+            print("0: Back to main menu")
+            print("-"*50)
+            
+            choice = input("Select option: ")
+            
+            if choice == '0':
+                break
+            elif choice == '1':
+                try:
+                    num = int(input("Enter lock number to clear (1-{}): ".format(len(locks))))
+                    if 1 <= num <= len(locks):
+                        lock = locks[num - 1]
+                        lock_id = lock['id'] if isinstance(lock, dict) else lock[0]
+                        username = lock['username'] if isinstance(lock, dict) else lock[1]
+                        
+                        confirm = input(f"Clear lock for @{username}? (y/n): ")
+                        if confirm.lower() == 'y':
+                            if db.clear_browser_lock_by_id(lock_id):
+                                print(f"✓ Cleared lock for @{username}")
+                            else:
+                                print(f"✗ Failed to clear lock")
+                    else:
+                        print("Invalid number")
+                except ValueError:
+                    print("Invalid input")
+            elif choice == '2':
+                confirm = input(f"Clear ALL {len(locks)} locks? (y/n): ")
+                if confirm.lower() == 'y':
+                    cleared = db.clear_all_browser_locks()
+                    print(f"✓ Cleared {cleared} locks")
+                    break
+            else:
+                print("Invalid choice")

@@ -169,6 +169,111 @@ class DatabaseManager:
                 return result['request_count'] if isinstance(result, dict) else result[0]
             return 0
     
+    # Browser lock operations
+    def acquire_browser_lock(self, username: str, pid: Optional[int] = None) -> bool:
+        """Try to acquire a browser lock for a profile"""
+        try:
+            with self.get_cursor() as cursor:
+                # Get profile ID
+                profile = self.get_profile_by_username(username)
+                if not profile:
+                    profile_id = self.get_or_create_profile(username)
+                else:
+                    profile_id = profile['id']
+                
+                # Try to insert lock (will fail if already exists due to unique constraint)
+                cursor.execute("""
+                    INSERT INTO browser_locks (profile_id, pid, browser_info)
+                    VALUES (%s, %s, %s)
+                """, (profile_id, pid, f"Locked by PID {pid}" if pid else "Manual lock"))
+                
+                return True
+        except pymysql.err.IntegrityError:
+            # Lock already exists
+            return False
+        except Exception as e:
+            logger.error(f"Error acquiring browser lock: {e}")
+            return False
+    
+    def release_browser_lock(self, username: str) -> bool:
+        """Release a browser lock for a profile"""
+        try:
+            with self.get_cursor() as cursor:
+                # Get profile ID
+                profile = self.get_profile_by_username(username)
+                if not profile:
+                    return False
+                
+                cursor.execute("""
+                    DELETE FROM browser_locks 
+                    WHERE profile_id = %s
+                """, (profile['id'],))
+                
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error releasing browser lock: {e}")
+            return False
+    
+    def is_browser_locked(self, username: str) -> bool:
+        """Check if a profile has a browser lock"""
+        try:
+            with self.get_cursor(commit=False) as cursor:
+                profile = self.get_profile_by_username(username)
+                if not profile:
+                    return False
+                
+                cursor.execute("""
+                    SELECT id FROM browser_locks 
+                    WHERE profile_id = %s
+                """, (profile['id'],))
+                
+                return cursor.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Error checking browser lock: {e}")
+            return False
+    
+    def get_all_browser_locks(self) -> List[Dict[str, Any]]:
+        """Get all active browser locks"""
+        try:
+            with self.get_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT 
+                        bl.id,
+                        p.username,
+                        bl.locked_at,
+                        bl.pid,
+                        bl.browser_info,
+                        TIMESTAMPDIFF(MINUTE, bl.locked_at, NOW()) as locked_minutes_ago
+                    FROM browser_locks bl
+                    JOIN profiles p ON bl.profile_id = p.id
+                    ORDER BY bl.locked_at DESC
+                """)
+                
+                return cursor.fetchall()
+        except Exception as e:
+            logger.error(f"Error getting browser locks: {e}")
+            return []
+    
+    def clear_all_browser_locks(self) -> int:
+        """Clear all browser locks. Returns number of locks cleared."""
+        try:
+            with self.get_cursor() as cursor:
+                cursor.execute("DELETE FROM browser_locks")
+                return cursor.rowcount
+        except Exception as e:
+            logger.error(f"Error clearing browser locks: {e}")
+            return 0
+    
+    def clear_browser_lock_by_id(self, lock_id: int) -> bool:
+        """Clear a specific browser lock by ID"""
+        try:
+            with self.get_cursor() as cursor:
+                cursor.execute("DELETE FROM browser_locks WHERE id = %s", (lock_id,))
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error clearing browser lock {lock_id}: {e}")
+            return False
+    
     def close(self):
         """Close database connection"""
         if self._connection:

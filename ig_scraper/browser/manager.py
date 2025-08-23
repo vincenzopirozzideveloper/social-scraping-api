@@ -8,6 +8,7 @@ from typing import Dict, Optional, Any
 from playwright.sync_api import Browser, BrowserContext, Page
 import threading
 from ig_scraper.config.env_config import BROWSER_SESSIONS_DIR
+from ig_scraper.database import DatabaseManager
 
 
 class ProfileLockError(Exception):
@@ -19,52 +20,23 @@ class BrowserManager:
     """Manages browser instances per profile to avoid conflicts"""
     
     _instances: Dict[str, Dict[str, Any]] = {}
-    _locks: Dict[str, threading.Lock] = {}
-    _lock_files: Dict[str, Path] = {}
+    _db = DatabaseManager()  # Single database instance
     
     @classmethod
     def is_profile_locked(cls, username: str) -> bool:
-        """Check if a profile is currently in use"""
-        lock_file = BROWSER_SESSIONS_DIR / username / ".lock"
-        
-        if lock_file.exists():
-            # Check if lock is stale (older than 1 hour)
-            if time.time() - lock_file.stat().st_mtime > 3600:
-                print(f"[DEBUG] Removing stale lock for {username}")
-                lock_file.unlink()
-                return False
-            return True
-        return False
+        """Check if a profile is currently in use (database-based)"""
+        return cls._db.is_browser_locked(username)
     
     @classmethod
     def acquire_lock(cls, username: str) -> bool:
-        """Acquire lock for a profile"""
-        if cls.is_profile_locked(username):
-            return False
-        
-        # Create lock file
-        lock_file = BROWSER_SESSIONS_DIR / username / ".lock"
-        lock_file.parent.mkdir(parents=True, exist_ok=True)
-        
-        lock_data = {
-            "timestamp": time.time(),
-            "pid": os.getpid()
-        }
-        
-        with open(lock_file, 'w') as f:
-            json.dump(lock_data, f)
-        
-        cls._lock_files[username] = lock_file
-        return True
+        """Acquire lock for a profile (database-based)"""
+        pid = os.getpid()
+        return cls._db.acquire_browser_lock(username, pid)
     
     @classmethod
     def release_lock(cls, username: str):
-        """Release lock for a profile"""
-        if username in cls._lock_files:
-            lock_file = cls._lock_files[username]
-            if lock_file.exists():
-                lock_file.unlink()
-            del cls._lock_files[username]
+        """Release lock for a profile (database-based)"""
+        cls._db.release_browser_lock(username)
     
     @classmethod
     def get_or_create_browser(cls, username: str, session_manager, playwright) -> Dict[str, Any]:
@@ -183,32 +155,16 @@ class BrowserManager:
                 # Force close if normal close fails
                 pass
         
-        # Clean up any remaining locks in memory
-        for username in list(cls._lock_files.keys()):
-            cls.release_lock(username)
-        
-        # Clean up ALL .lock files from disk (handles forced exits)
-        import os
-        from ..config.env_config import BROWSER_SESSIONS_DIR
-        
-        sessions_dir = BROWSER_SESSIONS_DIR
-        if sessions_dir.exists():
-            for profile_dir in sessions_dir.iterdir():
-                if profile_dir.is_dir():
-                    lock_file = profile_dir / ".lock"
-                    if lock_file.exists():
-                        try:
-                            lock_file.unlink()
-                            print(f"[DEBUG] Cleaned up stale lock for @{profile_dir.name}")
-                        except Exception as e:
-                            print(f"[DEBUG] Could not remove lock for @{profile_dir.name}: {e}")
+        # Clear ALL database locks
+        cleared = cls._db.clear_all_browser_locks()
+        if cleared > 0:
+            print(f"[DEBUG] Cleared {cleared} browser locks from database")
         
         # Force terminate any hanging browser processes in Docker
         try:
-            # Always in Docker environment now
-                import subprocess
-                subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
-                print("[DEBUG] Force killed browser processes in Docker")
+            import subprocess
+            subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+            print("[DEBUG] Force killed browser processes in Docker")
         except:
             pass
     
@@ -242,12 +198,18 @@ class BrowserManager:
             for profile in active:
                 print(f"@{profile['username']}: {profile['tabs']} tabs open")
         
-        # Check for locked profiles
-        lock_dir = BROWSER_SESSIONS_DIR
-        if lock_dir.exists():
-            for lock_file in lock_dir.glob("*/.lock"):
-                username = lock_file.parent.name
+        # Check for database locks
+        locks = cls._db.get_all_browser_locks()
+        if locks:
+            print("\n📔 DATABASE LOCKS:")
+            for lock in locks:
+                username = lock['username'] if isinstance(lock, dict) else lock[1]
+                lock_id = lock['id'] if isinstance(lock, dict) else lock[0]
+                minutes = lock['locked_minutes_ago'] if isinstance(lock, dict) else lock[5]
+                
                 if username not in [p['username'] for p in active]:
-                    print(f"@{username}: LOCKED (possibly stale)")
+                    print(f"  #{lock_id} @{username}: LOCKED {minutes}min ago (possibly stale)")
+                else:
+                    print(f"  #{lock_id} @{username}: ACTIVE ({minutes}min)")
         
         print("="*50)

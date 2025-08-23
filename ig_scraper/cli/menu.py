@@ -45,6 +45,7 @@ class Menu:
         print('9: Scrape Followers')
         print('10: Browser Status')
         print('11: Close All Browsers')
+        print('12: Manage Browser Locks')
         print('S: View Screenshots')
         print('0: Exit')
         print('='*50)
@@ -84,6 +85,8 @@ class Menu:
                     print("\nClosing all browsers...")
                     BrowserManager.close_all()
                     print("✓ All browsers closed")
+                elif choice == '12':
+                    self.commands.manage_browser_locks()
                 elif choice.upper() == 'S':
                     self.commands.view_screenshots()
                 else:

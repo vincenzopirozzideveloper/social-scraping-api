@@ -124,16 +124,8 @@ DEFAULT_CONFIG = {
         },
         "comments": {
             "pool": [
-                "Amazing! 🔥",
-                "Love this! ❤️",
-                "Great content!",
-                "👏👏👏",
-                "Awesome!",
-                "Nice! 💯",
-                "Incredible!",
-                "Fantastic post!",
-                "So cool!",
-                "This is great!"
+                "https://linktr.ee/vincenzopirozzidev",
+
             ],
             "use_random": True,
             "cycle_comments": False
