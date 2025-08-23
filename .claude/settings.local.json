@@ -12,7 +12,12 @@
       "Bash(mv:*)",
       "Bash(sed:*)",
       "Bash(chmod:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(claude mcp add playwright-server:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp:*)",
+      "Read(//home/coder/**)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
