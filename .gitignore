@@ -23,6 +23,7 @@ credentials.json
 
 # Browser sessions
 browser_sessions/
+browser_sessions_old/
 sessions/
 *.session
 *_state.json

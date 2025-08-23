@@ -1,6 +1,7 @@
 {
   "explore": {
     "enabled": true,
+    "max_posts": 10,
     "max_posts_per_page": 20,
     "infinite_scroll": true,
     "pause_every_n_posts": 10,

@@ -9,9 +9,17 @@ from datetime import datetime
 from contextlib import contextmanager
 from dotenv import load_dotenv
 import logging
+from pathlib import Path
 
 # Load environment variables
-load_dotenv()
+env_path = Path('.env')
+if env_path.exists():
+    load_dotenv(env_path)
+else:
+    # Try to load from parent directory if running from subdirectory
+    parent_env = Path('../.env')
+    if parent_env.exists():
+        load_dotenv(parent_env)
 
 logger = logging.getLogger(__name__)
 
@@ -30,24 +38,46 @@ class DatabaseManager:
     
     def initialize(self):
         """Initialize database connection parameters"""
+        # Use same configuration as test_db_connection.py
         self.config = {
             'host': os.getenv('DB_HOST', 'localhost'),
             'port': int(os.getenv('DB_PORT', 3306)),
             'user': os.getenv('DB_USER', 'root'),
             'password': os.getenv('DB_PASSWORD', ''),
-            'database': os.getenv('DB_NAME', 'instagram_scraper'),
             'charset': 'utf8mb4',
             'cursorclass': DictCursor,
             'autocommit': False
         }
+        self.db_name = os.getenv('DB_NAME', 'instagram_scraper')
         self.ensure_connection()
     
     def ensure_connection(self):
         """Ensure database connection is active"""
         try:
             if self._connection is None or not self._connection.open:
-                self._connection = pymysql.connect(**self.config)
-                logger.info(f"Connected to database: {self.config['database']}")
+                # First connect without database to ensure it exists
+                try:
+                    # Connect without database
+                    config_no_db = self.config.copy()
+                    self._connection = pymysql.connect(**config_no_db)
+                    
+                    # Create database if not exists
+                    with self._connection.cursor() as cursor:
+                        cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{self.db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+                        cursor.execute(f"USE `{self.db_name}`")
+                    self._connection.commit()
+                    
+                    # Now reconnect with database selected
+                    self._connection.close()
+                    self.config['database'] = self.db_name
+                    self._connection = pymysql.connect(**self.config)
+                    logger.info(f"Connected to database: {self.db_name}")
+                    
+                except pymysql.err.OperationalError as e:
+                    # If database already exists, just connect normally
+                    self.config['database'] = self.db_name
+                    self._connection = pymysql.connect(**self.config)
+                    logger.info(f"Connected to database: {self.db_name}")
         except Exception as e:
             logger.error(f"Database connection failed: {e}")
             raise
@@ -265,6 +295,139 @@ class DatabaseManager:
                 (session_id, limit)
             )
             return cursor.fetchall()
+    
+    # Browser Session operations (for database-backed sessions)
+    def get_profile_by_username(self, username: str) -> Optional[Dict]:
+        """Get profile by username"""
+        with self.get_cursor() as cursor:
+            cursor.execute("SELECT * FROM profiles WHERE username = %s", (username,))
+            return cursor.fetchone()
+    
+    def get_all_profiles(self) -> List[Dict]:
+        """Get all profiles"""
+        with self.get_cursor() as cursor:
+            cursor.execute("SELECT * FROM profiles ORDER BY username")
+            return cursor.fetchall()
+    
+    def get_browser_session(self, profile_id: int) -> Optional[Dict]:
+        """Get browser session for a profile"""
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM browser_sessions WHERE profile_id = %s AND is_active = TRUE",
+                (profile_id,)
+            )
+            return cursor.fetchone()
+    
+    def create_browser_session(self, profile_id: int, session_data: Dict, 
+                             cookies: Optional[List] = None,
+                             graphql_metadata: Optional[Dict] = None,
+                             user_agent: Optional[str] = None,
+                             csrf_token: Optional[str] = None,
+                             app_id: Optional[str] = None) -> int:
+        """Create a new browser session"""
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """INSERT INTO browser_sessions 
+                   (profile_id, session_data, cookies, graphql_metadata, 
+                    user_agent, csrf_token, app_id, is_active, last_used)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)""",
+                (profile_id, json.dumps(session_data), json.dumps(cookies) if cookies else None,
+                 json.dumps(graphql_metadata) if graphql_metadata else None,
+                 user_agent, csrf_token, app_id)
+            )
+            return cursor.lastrowid
+    
+    def update_browser_session(self, profile_id: int, session_data: Optional[Dict] = None,
+                             cookies: Optional[List] = None,
+                             graphql_metadata: Optional[Dict] = None,
+                             user_agent: Optional[str] = None,
+                             csrf_token: Optional[str] = None,
+                             app_id: Optional[str] = None):
+        """Update an existing browser session"""
+        with self.get_cursor() as cursor:
+            updates = ["last_used = CURRENT_TIMESTAMP"]
+            params = []
+            
+            if session_data is not None:
+                updates.append("session_data = %s")
+                params.append(json.dumps(session_data))
+            if cookies is not None:
+                updates.append("cookies = %s")
+                params.append(json.dumps(cookies))
+            if graphql_metadata is not None:
+                updates.append("graphql_metadata = %s")
+                params.append(json.dumps(graphql_metadata))
+            if user_agent is not None:
+                updates.append("user_agent = %s")
+                params.append(user_agent)
+            if csrf_token is not None:
+                updates.append("csrf_token = %s")
+                params.append(csrf_token)
+            if app_id is not None:
+                updates.append("app_id = %s")
+                params.append(app_id)
+            
+            params.append(profile_id)
+            cursor.execute(
+                f"UPDATE browser_sessions SET {', '.join(updates)} WHERE profile_id = %s",
+                params
+            )
+    
+    def deactivate_browser_session(self, profile_id: int):
+        """Deactivate a browser session"""
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                "UPDATE browser_sessions SET is_active = FALSE WHERE profile_id = %s",
+                (profile_id,)
+            )
+    
+    def save_graphql_endpoint(self, profile_id: int, endpoint_name: str, doc_id: str):
+        """Save a GraphQL endpoint"""
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """INSERT INTO graphql_endpoints (profile_id, endpoint_name, doc_id)
+                   VALUES (%s, %s, %s)
+                   ON DUPLICATE KEY UPDATE doc_id = VALUES(doc_id)""",
+                (profile_id, endpoint_name, doc_id)
+            )
+    
+    def update_profile(self, profile_id: int, user_id: Optional[str] = None,
+                      full_name: Optional[str] = None, bio: Optional[str] = None,
+                      follower_count: Optional[int] = None, following_count: Optional[int] = None,
+                      media_count: Optional[int] = None, is_verified: Optional[bool] = None):
+        """Update profile information"""
+        with self.get_cursor() as cursor:
+            updates = []
+            params = []
+            
+            if user_id is not None:
+                updates.append("user_id = %s")
+                params.append(user_id)
+            if full_name is not None:
+                updates.append("full_name = %s")
+                params.append(full_name)
+            if bio is not None:
+                updates.append("bio = %s")
+                params.append(bio)
+            if follower_count is not None:
+                updates.append("follower_count = %s")
+                params.append(follower_count)
+            if following_count is not None:
+                updates.append("following_count = %s")
+                params.append(following_count)
+            if media_count is not None:
+                updates.append("media_count = %s")
+                params.append(media_count)
+            if is_verified is not None:
+                updates.append("is_verified = %s")
+                params.append(is_verified)
+            
+            if updates:
+                params.append(profile_id)
+                cursor.execute(
+                    f"UPDATE profiles SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                    params
+                )
     
     # Following/Followers operations
     def save_following_batch(self, profile_id: int, users: List[Dict], fetch_type: str = 'following'):

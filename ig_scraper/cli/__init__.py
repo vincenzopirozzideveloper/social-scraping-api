@@ -1,5 +1,3 @@
-"""CLI module for Instagram Scraper"""
+from .menu import Menu
 
-from .cli import main, CLI
-
-__all__ = ['main', 'CLI']
+__all__ = ['Menu']

@@ -17,7 +17,12 @@
       "Bash(claude mcp add:*)",
       "Bash(claude mcp:*)",
       "Read(//home/coder/**)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__create_directory",
+      "mcp__filesystem__write_file",
+      "Read(//var/www/app/**)"
     ],
     "deny": [],
     "ask": []

@@ -41,10 +41,10 @@ class PostProcessed:
 class CommentMade:
     """Comment made model"""
     id: int
-    comment_id: Optional[str] = None
     media_id: str
-    media_code: Optional[str] = None
     comment_text: str
+    comment_id: Optional[str] = None
+    media_code: Optional[str] = None
     comment_url: Optional[str] = None
     created_at: Optional[datetime] = None
     profile_id: Optional[int] = None

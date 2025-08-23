@@ -197,8 +197,8 @@ class ExploreScraper:
             if response['status'] == 200:
                 print("✓ Request successful!")
                 
-                # Save request and response
-                self.save_request_response(query, full_url, headers, response['data'], next_max_id)
+                # Don't save to files anymore - handled by explore_api_db.py
+                # self.save_request_response(query, full_url, headers, response['data'], next_max_id)
                 
                 return response['data']
             else:
@@ -241,14 +241,16 @@ class ExploreScraper:
             with open(request_file, 'w', encoding='utf-8') as f:
                 json.dump(request_data, f, indent=2, ensure_ascii=False)
             
-            print(f"  → Request saved: {request_file.name}")
+            # File saving disabled - now using database
+            # print(f"  → Request saved: {request_file.name}")
             
             # Save response
             response_file = self.data_dir / f"res_{base_name}.json"
             with open(response_file, 'w', encoding='utf-8') as f:
                 json.dump(response_data, f, indent=2, ensure_ascii=False)
             
-            print(f"  → Response saved: {response_file.name}")
+            # File saving disabled - now using database
+            # print(f"  → Response saved: {response_file.name}")
             
             # Save summary
             summary_file = self.data_dir / f"summary_{base_name}.txt"
@@ -286,8 +288,9 @@ class ExploreScraper:
                 if response_data.get('auto_load_more_enabled') is not None:
                     f.write(f"Auto load more enabled: {response_data['auto_load_more_enabled']}\n")
             
-            print(f"  → Summary saved: {summary_file.name}")
-            print(f"\n  📁 All data saved to: {self.data_dir}")
+            # File saving disabled - now using database
+            # print(f"  → Summary saved: {summary_file.name}")
+            # print(f"\n  📁 All data saved to: {self.data_dir}")
             
         except Exception as e:
             print(f"  ⚠ Error saving data: {e}")
