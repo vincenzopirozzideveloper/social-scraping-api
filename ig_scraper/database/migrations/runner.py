@@ -35,11 +35,20 @@ class MigrationRunner:
             if f.name != '__init__.py'
         ])
         
+        # Add the migrations package to sys.modules to allow relative imports
+        import ig_scraper.database.migrations
+        sys.modules['ig_scraper.database.migrations.base'] = sys.modules['ig_scraper.database.migrations.base']
+        
         for migration_file in migration_files:
-            # Import the migration module
-            module_name = migration_file.stem
+            # Import the migration module with full package path
+            module_name = f"ig_scraper.database.migrations.{migration_file.stem}"
             spec = importlib.util.spec_from_file_location(module_name, migration_file)
             module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            
+            # Set __package__ to allow relative imports
+            module.__package__ = 'ig_scraper.database.migrations'
+            
             spec.loader.exec_module(module)
             
             # Find the Migration subclass
@@ -59,8 +68,8 @@ class MigrationRunner:
         print("\n" + "="*80)
         print("DATABASE MIGRATION TOOL")
         print("="*80)
-        print(f"Database: {self.db_config['database']}")
-        print(f"Host: {self.db_config['host']}:{self.db_config['port']}")
+        print(f"Database: {os.getenv('DB_NAME', 'instagram_db')}")
+        print(f"Host: {self.db_config.get('host', 'instagram-mariadb')}:{self.db_config.get('port', 3306)}")
         print("="*80)
         
         print("\n📂 Loading migrations...")

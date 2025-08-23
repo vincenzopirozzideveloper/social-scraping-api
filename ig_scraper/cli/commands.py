@@ -442,6 +442,9 @@ class Commands:
                     page_count += 1
                     
                 print(f"\n✓ Total pages loaded: {page_count}")
+                
+                # Close the search session in database
+                scraper.close_search_session()
             
             print('\nWaiting 10 seconds before closing tab...')
             page.wait_for_timeout(10000)

@@ -553,12 +553,13 @@ class ExploreAPIAutomationDB:
                 comment_text = self._get_next_comment()
                 print(f"→ Commenting on post {media_code}: '{comment_text}'")
                 
-                # Use GraphQL comment action
+                # Use GraphQL comment action - pass media_code in extra params
                 self.action_manager.add_action(
                     self.comment_action,
                     target_id=media_id,
                     target_username=owner_username,
-                    comment_text=comment_text
+                    comment_text=comment_text,
+                    media_code=media_code  # Pass the actual media code
                 )
                 
                 results = self.action_manager.execute_queue(delay_between=False)

@@ -3,7 +3,7 @@
 import time
 import json
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from collections import deque
@@ -18,6 +18,7 @@ class QueuedAction:
     target_id: str
     target_username: Optional[str] = None
     priority: int = 0  # Higher priority = executed first
+    extra_params: Dict[str, Any] = field(default_factory=dict)  # For comment_text, etc.
     
     
 class ActionManager:
@@ -46,13 +47,14 @@ class ActionManager:
         self.stats_dir = Path("action_logs") / username / "stats"
         self.stats_dir.mkdir(parents=True, exist_ok=True)
         
-    def add_action(self, action: BaseAction, target_id: str, target_username: Optional[str] = None, priority: int = 0):
-        """Add an action to the queue"""
+    def add_action(self, action: BaseAction, target_id: str, target_username: Optional[str] = None, priority: int = 0, **kwargs):
+        """Add an action to the queue with optional extra parameters"""
         queued = QueuedAction(
             action=action,
             target_id=target_id,
             target_username=target_username,
-            priority=priority
+            priority=priority,
+            extra_params=kwargs
         )
         
         if priority > 0:
@@ -114,11 +116,29 @@ class ActionManager:
             print(f"[DEBUG] Stats so far - Success: {self.stats['successful']}, Failed: {self.stats['failed']}")
             
             try:
-                # Execute the action
-                result = queued_action.action.execute(
-                    queued_action.target_id,
-                    queued_action.target_username
-                )
+                # Execute the action with extra parameters if available
+                if queued_action.extra_params:
+                    # For comments, pass comment_text as second parameter and media_code as third
+                    if 'comment_text' in queued_action.extra_params:
+                        media_code = queued_action.extra_params.get('media_code', None)
+                        result = queued_action.action.execute(
+                            queued_action.target_id,
+                            queued_action.extra_params['comment_text'],
+                            media_code  # Pass media_code, not username
+                        )
+                    else:
+                        # Other actions with extra params
+                        result = queued_action.action.execute(
+                            queued_action.target_id,
+                            queued_action.target_username,
+                            **queued_action.extra_params
+                        )
+                else:
+                    # Standard execution
+                    result = queued_action.action.execute(
+                        queued_action.target_id,
+                        queued_action.target_username
+                    )
                 
                 self.results.append(result)
                 

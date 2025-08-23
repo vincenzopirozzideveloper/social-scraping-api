@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from ..api import Endpoints, GraphQLClient
 from ..config import ConfigManager
+from ..database import DatabaseManager
 
 
 class ExploreScraper:
@@ -19,6 +20,17 @@ class ExploreScraper:
         self.username = username
         self.rank_token = str(uuid.uuid4())  # Generate unique rank token for session
         self.search_session_id = str(uuid.uuid4())  # Generate search session ID
+        
+        # Database connection
+        self.db = DatabaseManager()
+        self.profile = self.db.get_profile_by_username(username)
+        if not self.profile:
+            self.profile = self.db.get_or_create_profile(username)
+        self.profile_id = self.profile['id']
+        
+        # Track search session in database
+        self.db_search_session_id = None
+        self.current_page = 0
         
         # Load configuration
         self.config_manager = ConfigManager()
@@ -81,9 +93,118 @@ class ExploreScraper:
             print(f"✗ Error verifying login: {e}")
             return False
     
+    def create_search_session(self, query: str) -> int:
+        """Create a new search session in database"""
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO explore_search_sessions 
+                    (profile_id, search_query, search_type, total_pages, total_posts)
+                    VALUES (%s, %s, %s, 0, 0)
+                """, (self.profile_id, query, 'search'))
+                self.db_search_session_id = cursor.lastrowid
+                return self.db_search_session_id
+        except Exception as e:
+            print(f"Error creating search session: {e}")
+            return None
+    
+    def save_api_request_response(self, endpoint: str, url: str, params: Dict, 
+                                  response_data: Dict, page_number: int) -> int:
+        """Save API request and response to database, return request ID"""
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO api_requests 
+                    (profile_id, search_session_id, request_type, page_number, endpoint, 
+                     method, params, response_status, response_body, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                """, (
+                    self.profile_id,
+                    self.db_search_session_id,
+                    'explore_search',
+                    page_number,
+                    url,
+                    'GET',
+                    json.dumps(params),
+                    200 if response_data else 0,
+                    json.dumps(response_data) if response_data else None
+                ))
+                return cursor.lastrowid
+        except Exception as e:
+            print(f"Error saving API request: {e}")
+            return None
+    
+    def close_search_session(self):
+        """Close the current search session"""
+        if self.db_search_session_id:
+            try:
+                with self.db.get_cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE explore_search_sessions 
+                        SET ended_at = NOW()
+                        WHERE id = %s
+                    """, (self.db_search_session_id,))
+                    print(f"  → Search session #{self.db_search_session_id} closed")
+            except Exception as e:
+                print(f"Error closing search session: {e}")
+    
+    def save_explore_posts(self, api_request_id: int, posts: List[Dict]) -> int:
+        """Save posts found in explore to database"""
+        saved_count = 0
+        try:
+            with self.db.get_cursor() as cursor:
+                for position, post in enumerate(posts):
+                    media = post.get('media', post)
+                    media_id = media.get('id') or media.get('pk')
+                    media_code = media.get('code')
+                    owner = media.get('owner', {})
+                    
+                    if not media_id:
+                        continue
+                    
+                    cursor.execute("""
+                        INSERT INTO explore_posts 
+                        (api_request_id, profile_id, media_id, media_code, media_type,
+                         owner_id, owner_username, owner_full_name, caption,
+                         like_count, comment_count, has_liked, is_verified,
+                         position_in_response, raw_data)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                        like_count = VALUES(like_count),
+                        comment_count = VALUES(comment_count)
+                    """, (
+                        api_request_id,
+                        self.profile_id,
+                        str(media_id),
+                        media_code,
+                        media.get('media_type'),
+                        owner.get('id') or owner.get('pk'),
+                        owner.get('username'),
+                        owner.get('full_name'),
+                        media.get('caption', {}).get('text') if isinstance(media.get('caption'), dict) else None,
+                        media.get('like_count', 0),
+                        media.get('comment_count', 0),
+                        media.get('has_liked', False),
+                        owner.get('is_verified', False),
+                        position,
+                        json.dumps(media)
+                    ))
+                    saved_count += 1
+        except Exception as e:
+            print(f"Error saving posts: {e}")
+        
+        return saved_count
+    
     def search_explore(self, query: str, next_max_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Search in explore with a query"""
         try:
+            # Create search session on first request
+            if not next_max_id and not self.db_search_session_id:
+                self.db_search_session_id = self.create_search_session(query)
+                self.current_page = 1
+            elif next_max_id:
+                self.current_page += 1
+            
             # Get csrf token from cookies
             cookies = self.page.context.cookies()
             csrf_token = None
@@ -197,7 +318,55 @@ class ExploreScraper:
             if response['status'] == 200:
                 print("✓ Request successful!")
                 
-                # Don't save to files anymore - handled by explore_api_db.py
+                # Save to database
+                if self.db_search_session_id:
+                    # Build params dict for database
+                    params_dict = {
+                        'enable_metadata': True,
+                        'query': query,
+                        'search_session_id': '' if next_max_id else self.search_session_id,
+                        'rank_token': self.rank_token
+                    }
+                    if next_max_id:
+                        params_dict['next_max_id'] = next_max_id
+                    
+                    # Save API request and response
+                    api_request_id = self.save_api_request_response(
+                        endpoint='explore/search',
+                        url=full_url,
+                        params=params_dict,
+                        response_data=response['data'],
+                        page_number=self.current_page
+                    )
+                    
+                    if api_request_id:
+                        # Extract and save posts from response
+                        posts = []
+                        
+                        # Extract posts from media_grid sections
+                        if 'media_grid' in response['data'] and 'sections' in response['data']['media_grid']:
+                            for section in response['data']['media_grid']['sections']:
+                                if 'layout_content' in section and 'medias' in section['layout_content']:
+                                    for media_item in section['layout_content']['medias']:
+                                        if 'media' in media_item:
+                                            posts.append(media_item['media'])
+                        
+                        if posts:
+                            saved_count = self.save_explore_posts(api_request_id, posts)
+                            print(f"  → Saved {saved_count} posts to database")
+                        
+                        # Update session totals
+                        try:
+                            with self.db.get_cursor() as cursor:
+                                cursor.execute("""
+                                    UPDATE explore_search_sessions 
+                                    SET total_pages = %s, total_posts = total_posts + %s
+                                    WHERE id = %s
+                                """, (self.current_page, len(posts), self.db_search_session_id))
+                        except Exception as e:
+                            print(f"Error updating session totals: {e}")
+                
+                # Don't save to files anymore - handled by database
                 # self.save_request_response(query, full_url, headers, response['data'], next_max_id)
                 
                 return response['data']
