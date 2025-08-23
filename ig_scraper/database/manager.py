@@ -4,7 +4,7 @@ import os
 import json
 import pymysql
 from pymysql.cursors import DictCursor
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 from contextlib import contextmanager
 from dotenv import load_dotenv
@@ -82,6 +82,12 @@ class DatabaseManager:
             logger.error(f"Database connection failed: {e}")
             raise
     
+    @property
+    def connection(self):
+        """Get database connection"""
+        self.ensure_connection()
+        return self._connection
+    
     @contextmanager
     def get_cursor(self, commit=True):
         """Context manager for database cursor"""
@@ -97,6 +103,71 @@ class DatabaseManager:
             raise
         finally:
             cursor.close()
+    
+    def check_and_increment_hourly_limit(self, profile_id: int, limit: int = 200) -> Tuple[bool, int]:
+        """Check if we can make another request and increment counter
+        Returns: (can_proceed, current_count)
+        """
+        from datetime import datetime, timedelta
+        
+        with self.get_cursor() as cursor:
+            # Get current hour slot (truncated to hour)
+            now = datetime.now()
+            hour_slot = now.replace(minute=0, second=0, microsecond=0)
+            
+            # Try to get existing counter for this hour
+            cursor.execute("""
+                SELECT request_count 
+                FROM hourly_request_tracker 
+                WHERE profile_id = %s AND hour_slot = %s
+            """, (profile_id, hour_slot))
+            
+            result = cursor.fetchone()
+            
+            if result:
+                current_count = result['request_count'] if isinstance(result, dict) else result[0]
+                
+                if current_count >= limit:
+                    # Already at limit
+                    return False, current_count
+                
+                # Increment counter
+                cursor.execute("""
+                    UPDATE hourly_request_tracker 
+                    SET request_count = request_count + 1,
+                        last_request_at = NOW()
+                    WHERE profile_id = %s AND hour_slot = %s
+                """, (profile_id, hour_slot))
+                
+                return True, current_count + 1
+            else:
+                # First request in this hour, create entry
+                cursor.execute("""
+                    INSERT INTO hourly_request_tracker 
+                    (profile_id, hour_slot, request_count) 
+                    VALUES (%s, %s, 1)
+                """, (profile_id, hour_slot))
+                
+                return True, 1
+    
+    def get_hourly_request_count(self, profile_id: int) -> int:
+        """Get current hour's request count for a profile"""
+        from datetime import datetime
+        
+        with self.get_cursor(commit=False) as cursor:
+            now = datetime.now()
+            hour_slot = now.replace(minute=0, second=0, microsecond=0)
+            
+            cursor.execute("""
+                SELECT request_count 
+                FROM hourly_request_tracker 
+                WHERE profile_id = %s AND hour_slot = %s
+            """, (profile_id, hour_slot))
+            
+            result = cursor.fetchone()
+            if result:
+                return result['request_count'] if isinstance(result, dict) else result[0]
+            return 0
     
     def close(self):
         """Close database connection"""

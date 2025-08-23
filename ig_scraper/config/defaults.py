@@ -11,23 +11,42 @@ DEFAULT_CONFIG = {
     "scraping": {
         "following": {
             "max_count": 200,           # Maximum users per request (Instagram limit)
-            "default_count": 12,        # Default count if not specified
+            "default_count": 200,        # Default count - use maximum supported
             "pagination_delay": 3000,   # Delay between pagination requests (ms)
             "verify_login": True,       # Verify login before scraping
             "save_responses": False,    # Save API responses to file
-            "response_dir": f"{API_RESPONSES_DIR}/following"  # Directory for saved responses
+            "response_dir": f"{API_RESPONSES_DIR}/following",  # Directory for saved responses
+            "auto_pagination": True,    # Automatically load pages without prompts
+            "max_pages": 50,            # Maximum pages to load automatically
+            "page_delay_min": 3,        # Min delay between pages (seconds)
+            "page_delay_max": 8         # Max delay between pages (seconds)
         },
         "followers": {
-            "max_count": 200,
-            "default_count": 12,
-            "pagination_delay": 3000,
-            "verify_login": True
+            "max_count": 12,            # Maximum followers per request (Instagram optimal)
+            "default_count": 12,         # Default count if not specified  
+            "pagination_delay": 3000,    # Delay between pagination requests (ms)
+            "verify_login": True,        # Verify login before scraping
+            "auto_pagination": True,     # Automatically load pages without prompts
+            "max_pages": 9999,           # Maximum pages to load automatically
+            "page_delay_min": 3,         # Min delay between pages (seconds)
+            "page_delay_max": 8,         # Max delay between pages (seconds)
+            "pause_after_pages": 50,     # Pause after this many pages
+            "pause_duration_min": 60,    # Min pause duration (seconds)
+            "pause_duration_max": 120    # Max pause duration (seconds)
         },
         "explore": {
             "default_query": "news",
             "save_responses": True,     # Save all responses to files
             "response_dir": SCRAPED_DATA_DIR,
-            "pagination_delay": 3000
+            "pagination_delay": 3000,
+            "auto_pagination": True,     # Automatically load pages without prompts
+            "infinite_pagination": True, # Continue until no more pages
+            "max_pages": 999,            # Maximum pages (safety limit)
+            "page_delay_min": 15,        # Min delay between pages (seconds)
+            "page_delay_max": 30,        # Max delay between pages (seconds)
+            "hourly_request_limit": 200, # Max requests per hour
+            "pause_on_limit_minutes": 60, # Pause duration when limit reached
+            "save_pagination_state": True # Save state to resume later
         }
     },
     "actions": {
@@ -120,13 +139,13 @@ DEFAULT_CONFIG = {
             "cycle_comments": False
         },
         "delays": {
-            "between_posts_min": 5,
-            "between_posts_max": 15,
-            "between_actions_min": 2,
-            "between_actions_max": 5,
-            "between_pages_min": 10,
-            "between_pages_max": 20,
-            "page_load_wait": 5
+            "between_posts_min": 8,
+            "between_posts_max": 20,
+            "between_actions_min": 3,
+            "between_actions_max": 8,
+            "between_pages_min": 15,
+            "between_pages_max": 30,
+            "page_load_wait": 7
         },
         "limits": {
             "max_likes_per_session": 500,

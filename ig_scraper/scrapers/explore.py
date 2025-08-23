@@ -195,6 +195,188 @@ class ExploreScraper:
         
         return saved_count
     
+    def get_general_explore(self, max_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get general explore feed without search query"""
+        try:
+            # Create search session for general explore
+            if not max_id and not self.db_search_session_id:
+                self.db_search_session_id = self.create_search_session("__general_explore__")
+                self.current_page = 1
+            elif max_id:
+                self.current_page += 1
+            
+            # Get csrf token from cookies
+            cookies = self.page.context.cookies()
+            csrf_token = None
+            
+            for cookie in cookies:
+                if cookie['name'] == 'csrftoken':
+                    csrf_token = cookie['value']
+                    break
+            
+            # Build URL with parameters
+            base_url = "https://www.instagram.com/api/v1/discover/web/explore_grid/"
+            params = [
+                "include_fixed_destinations=true",
+                "is_nonpersonalized_explore=false",
+                "is_prefetch=false",
+                "module=explore_popular",
+                "omit_cover_media=false"
+            ]
+            
+            if max_id:
+                params.append(f"max_id={max_id}")
+            
+            full_url = base_url + "?" + "&".join(params)
+            
+            print("\n" + "="*50)
+            print("GENERAL EXPLORE REQUEST")
+            print("="*50)
+            print(f"Type: General explore (no search)")
+            if max_id:
+                print(f"Pagination: max_id={max_id[:50]}...")
+            
+            # Get saved metadata for headers
+            saved_info = self.session_manager.load_session_info(self.username)
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            app_id = "936619743392459"
+            
+            if saved_info and 'graphql' in saved_info:
+                graphql_data = saved_info['graphql']
+                if graphql_data.get('user_agent'):
+                    user_agent = graphql_data['user_agent']
+                if graphql_data.get('app_id'):
+                    app_id = graphql_data['app_id']
+            
+            # Get x-ig-www-claim from cookies if available
+            x_ig_www_claim = None
+            for cookie in cookies:
+                if cookie['name'] == 'ig_www_claim':
+                    x_ig_www_claim = cookie['value']
+                    break
+            
+            # Build headers
+            headers = {
+                "accept": "*/*",
+                "accept-language": "en-GB,en;q=0.9,it-IT;q=0.8,it;q=0.7,en-US;q=0.6",
+                "cache-control": "no-cache",
+                "pragma": "no-cache",
+                "priority": "u=1, i",
+                "sec-ch-prefers-color-scheme": "light",
+                "sec-ch-ua": '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
+                "sec-ch-ua-full-version-list": '"Not;A=Brand";v="99.0.0.0", "Google Chrome";v="139.0.7258.128", "Chromium";v="139.0.7258.128"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-model": '""',
+                "sec-ch-ua-platform": '"Windows"',
+                "sec-ch-ua-platform-version": '"19.0.0"',
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "same-origin",
+                "user-agent": user_agent,
+                "x-asbd-id": "359341",
+                "x-csrftoken": csrf_token,
+                "x-ig-app-id": app_id,
+                "x-requested-with": "XMLHttpRequest"
+            }
+            
+            # Add x-ig-www-claim if available
+            if x_ig_www_claim:
+                headers["x-ig-www-claim"] = x_ig_www_claim
+            
+            # Add x-web-session-id 
+            import uuid
+            headers["x-web-session-id"] = f"{uuid.uuid4().hex[:6]}:{uuid.uuid4().hex[:6]}:{uuid.uuid4().hex[:6]}"
+            
+            # Make request using browser's fetch
+            response = self.page.evaluate(f"""
+                (async () => {{
+                    const response = await fetch("{full_url}", {{
+                        method: 'GET',
+                        headers: {json.dumps(headers)},
+                        credentials: 'include'
+                    }});
+                    
+                    const data = await response.json();
+                    return {{
+                        status: response.status,
+                        data: data
+                    }};
+                }})()
+            """)
+            
+            print(f"\nResponse Status: {response['status']}")
+            
+            if response['status'] == 200:
+                print("✓ Request successful!")
+                
+                # Save to database
+                if self.db_search_session_id:
+                    # Build params dict for database
+                    params_dict = {
+                        'include_fixed_destinations': True,
+                        'is_nonpersonalized_explore': False,
+                        'module': 'explore_popular'
+                    }
+                    if max_id:
+                        params_dict['max_id'] = max_id
+                    
+                    # Save API request and response
+                    api_request_id = self.save_api_request_response(
+                        endpoint='discover/web/explore_grid',
+                        url=full_url,
+                        params=params_dict,
+                        response_data=response['data'],
+                        page_number=self.current_page
+                    )
+                    
+                    if api_request_id:
+                        # Extract and save posts from response
+                        posts = []
+                        
+                        # Extract posts from sectional_items
+                        if 'sectional_items' in response['data']:
+                            for section in response['data']['sectional_items']:
+                                if 'layout_content' in section:
+                                    layout = section['layout_content']
+                                    
+                                    # Check for clips/reels
+                                    if 'one_by_two_item' in layout and 'clips' in layout['one_by_two_item']:
+                                        clips = layout['one_by_two_item']['clips']
+                                        if 'items' in clips:
+                                            for item in clips['items']:
+                                                if 'media' in item:
+                                                    posts.append(item['media'])
+                                    
+                                    # Check for regular posts
+                                    if 'medias' in layout:
+                                        for media_item in layout['medias']:
+                                            if 'media' in media_item:
+                                                posts.append(media_item['media'])
+                        
+                        if posts:
+                            saved_count = self.save_explore_posts(api_request_id, posts)
+                            print(f"  → Saved {saved_count} posts to database")
+                        
+                        # Update session totals
+                        try:
+                            with self.db.get_cursor() as cursor:
+                                cursor.execute("""
+                                    UPDATE explore_search_sessions 
+                                    SET total_pages = %s, total_posts = total_posts + %s
+                                    WHERE id = %s
+                                """, (self.current_page, len(posts), self.db_search_session_id))
+                        except Exception as e:
+                            print(f"Error updating session totals: {e}")
+                
+                return response['data']
+            else:
+                print(f"✗ Request failed with status: {response['status']}")
+                return None
+                
+        except Exception as e:
+            print(f"✗ Error in general explore: {e}")
+            return None
+    
     def search_explore(self, query: str, next_max_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Search in explore with a query"""
         try:

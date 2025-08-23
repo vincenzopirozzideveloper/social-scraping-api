@@ -212,10 +212,19 @@ class SessionManager:
             print(f"✗ Failed to save session state: {e}")
     
     def list_profiles(self) -> List[str]:
-        """List all saved profiles from database"""
+        """List only profiles with saved browser sessions"""
         try:
-            profiles = self.db.get_all_profiles()
-            return [p['username'] for p in profiles if p.get('username')]
+            # Get only profiles that have active browser sessions
+            with self.db.get_cursor() as cursor:
+                cursor.execute("""
+                    SELECT DISTINCT p.username 
+                    FROM profiles p
+                    INNER JOIN browser_sessions bs ON p.id = bs.profile_id
+                    WHERE bs.is_active = TRUE
+                    ORDER BY p.username
+                """)
+                results = cursor.fetchall()
+                return [r['username'] for r in results if r.get('username')]
         except Exception as e:
             print(f"✗ Failed to list profiles: {e}")
             return []

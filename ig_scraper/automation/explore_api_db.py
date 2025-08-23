@@ -497,8 +497,13 @@ class ExploreAPIAutomationDB:
         self.processed_posts.add(media_id)
         actions_taken = []
         
+        # Check if already liked
+        has_liked = post.get('has_liked', False)
+        if has_liked:
+            print(f"→ Post already liked, skipping like action")
+        
         # Like the post
-        if self.config["explore"]["actions"]["like"]:
+        if self.config["explore"]["actions"]["like"] and not has_liked:
             if self.stats['likes'] < self.config["limits"]["max_likes_per_session"]:
                 print(f"→ Liking post {media_code}...")
                 

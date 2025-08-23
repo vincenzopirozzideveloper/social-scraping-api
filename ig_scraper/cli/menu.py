@@ -42,8 +42,9 @@ class Menu:
         print('6: Explore Search')
         print('7: Massive Unfollow (ALL)')
         print('8: Explore Automation (Like & Comment)')
-        print('9: Browser Status')
-        print('10: Close All Browsers')
+        print('9: Scrape Followers')
+        print('10: Browser Status')
+        print('11: Close All Browsers')
         print('S: View Screenshots')
         print('0: Exit')
         print('='*50)
@@ -76,8 +77,10 @@ class Menu:
                 elif choice == '8':
                     self.commands.explore_automation(self.playwright)
                 elif choice == '9':
-                    BrowserManager.status()
+                    self.commands.scrape_followers(self.playwright)
                 elif choice == '10':
+                    BrowserManager.status()
+                elif choice == '11':
                     print("\nClosing all browsers...")
                     BrowserManager.close_all()
                     print("✓ All browsers closed")
